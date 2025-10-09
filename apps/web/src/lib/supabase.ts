@@ -4,12 +4,22 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    'Missing Supabase environment variables. Please create a .env.local file with VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY'
+  console.error(
+    '⚠️ Missing Supabase environment variables!\n' +
+    'Please create a .env.local file with:\n' +
+    'VITE_SUPABASE_URL=https://your-project-id.supabase.co\n' +
+    'VITE_SUPABASE_ANON_KEY=your-anon-key-here\n'
   );
+
+  // Provide dummy values for development to prevent crash
+  // The app will show an error page instead of blank screen
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+// Use dummy values if not configured (will fail auth but won't crash)
+const url = supabaseUrl || 'https://placeholder.supabase.co';
+const key = supabaseAnonKey || 'placeholder-key';
+
+export const supabase = createClient(url, key, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
@@ -157,3 +167,8 @@ export interface InvoiceWithDetails extends Invoice {
   customer: Customer;
   invoice_items: InvoiceItem[];
 }
+
+// Check if Supabase is configured
+export const isSupabaseConfigured = () => {
+  return !!supabaseUrl && !!supabaseAnonKey && supabaseUrl !== 'https://placeholder.supabase.co';
+};

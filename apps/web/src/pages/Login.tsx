@@ -1,6 +1,7 @@
 import { useState, FormEvent } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { isSupabaseConfigured } from '../lib/supabase';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -9,6 +10,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const { signIn } = useAuth();
   const navigate = useNavigate();
+  const isConfigured = isSupabaseConfigured();
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -59,6 +61,16 @@ export default function Login() {
           <h2 className="text-2xl font-semibold text-gray-900 mb-6">
             Sign In
           </h2>
+
+          {!isConfigured && (
+            <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+              <p className="text-sm font-medium text-yellow-900 mb-2">⚠️ Supabase Not Configured</p>
+              <p className="text-xs text-yellow-800">
+                Create <code className="bg-yellow-100 px-1 rounded">.env.local</code> with your Supabase credentials.
+                See <code className="bg-yellow-100 px-1 rounded">apps/web/.env.example</code> for template.
+              </p>
+            </div>
+          )}
 
           {error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
