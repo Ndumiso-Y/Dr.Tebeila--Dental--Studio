@@ -10,6 +10,7 @@ interface AuthState {
   role: UserRole | null;
   fullName: string | null;
   loading: boolean;
+  error: string | null;
 }
 
 interface AuthContextType extends AuthState {
@@ -28,7 +29,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     role: null,
     fullName: null,
     loading: true,
+    error: null,
   });
+
+  // Safety: never spin forever (8s)
+  useEffect(() => {
+    const t = setTimeout(() => setState((prev) => ({ ...prev, loading: false })), 8000);
+    return () => clearTimeout(t);
+  }, []);
 
   // Fetch user profile after auth
   const fetchProfile = async (userId: string): Promise<UserProfile | null> => {
@@ -53,42 +61,117 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Initialize auth state
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    let mounted = true;
+
+    async function init() {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) {
+        if (mounted) {
+          setState((prev) => ({ ...prev, error: error.message, loading: false }));
+        }
+        return;
+      }
+      if (mounted) {
+        if (data.session?.user) {
+          const profile = await fetchProfile(data.session.user.id);
+          if (mounted) {
+            if (!profile) {
+              setState((prev) => ({
+                ...prev,
+                user: data.session.user,
+                session: data.session,
+                error: 'User profile not found.',
+                loading: false,
+              }));
+            } else if (!profile.is_active) {
+              setState((prev) => ({
+                ...prev,
+                user: data.session.user,
+                session: data.session,
+                profile,
+                error: 'Your profile is inactive. Contact support.',
+                loading: false,
+              }));
+            } else if (!profile.tenant_id) {
+              setState((prev) => ({
+                ...prev,
+                user: data.session.user,
+                session: data.session,
+                profile,
+                error: 'No tenant is linked to this user.',
+                loading: false,
+              }));
+            } else {
+              setState({
+                user: data.session.user,
+                session: data.session,
+                profile,
+                tenantId: profile.tenant_id,
+                role: profile.role,
+                fullName: profile.full_name,
+                loading: false,
+                error: null,
+              });
+            }
+          }
+        } else {
+          setState((prev) => ({ ...prev, loading: false }));
+        }
+      }
+    }
+
+    init();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
-        fetchProfile(session.user.id).then((profile) => {
+        const profile = await fetchProfile(session.user.id);
+        if (!profile) {
+          setState({
+            user: session.user,
+            session,
+            profile: null,
+            tenantId: null,
+            role: null,
+            fullName: null,
+            loading: false,
+            error: 'User profile not found.',
+          });
+        } else if (!profile.is_active) {
           setState({
             user: session.user,
             session,
             profile,
-            tenantId: profile?.tenant_id ?? null,
-            role: profile?.role ?? null,
-            fullName: profile?.full_name ?? null,
+            tenantId: null,
+            role: profile.role,
+            fullName: profile.full_name,
             loading: false,
+            error: 'Your profile is inactive. Contact support.',
           });
-        });
-      } else {
-        setState((prev) => ({ ...prev, loading: false }));
-      }
-    });
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event, session?.user?.email);
-
-      if (session?.user) {
-        const profile = await fetchProfile(session.user.id);
-        setState({
-          user: session.user,
-          session,
-          profile,
-          tenantId: profile?.tenant_id ?? null,
-          role: profile?.role ?? null,
-          fullName: profile?.full_name ?? null,
-          loading: false,
-        });
+        } else if (!profile.tenant_id) {
+          setState({
+            user: session.user,
+            session,
+            profile,
+            tenantId: null,
+            role: profile.role,
+            fullName: profile.full_name,
+            loading: false,
+            error: 'No tenant is linked to this user.',
+          });
+        } else {
+          setState({
+            user: session.user,
+            session,
+            profile,
+            tenantId: profile.tenant_id,
+            role: profile.role,
+            fullName: profile.full_name,
+            loading: false,
+            error: null,
+          });
+        }
       } else {
         setState({
           user: null,
@@ -98,17 +181,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           role: null,
           fullName: null,
           loading: false,
+          error: null,
         });
       }
     });
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    setState((prev) => ({ ...prev, loading: true }));
+    setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -129,6 +214,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           throw new Error('Your account is inactive. Please contact administrator.');
         }
 
+        if (!profile.tenant_id) {
+          throw new Error('No tenant is linked to this user. Please contact administrator.');
+        }
+
         setState({
           user: data.user,
           session: data.session,
@@ -137,16 +226,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           role: profile.role,
           fullName: profile.full_name,
           loading: false,
+          error: null,
         });
       }
     } catch (error: any) {
-      setState((prev) => ({ ...prev, loading: false }));
+      setState((prev) => ({ ...prev, loading: false, error: error.message }));
       throw error;
     }
   };
 
   const signOut = async () => {
-    setState((prev) => ({ ...prev, loading: true }));
+    setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
@@ -159,9 +249,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: null,
         fullName: null,
         loading: false,
+        error: null,
       });
     } catch (error: any) {
-      setState((prev) => ({ ...prev, loading: false }));
+      setState((prev) => ({ ...prev, loading: false, error: error.message }));
       throw error;
     }
   };

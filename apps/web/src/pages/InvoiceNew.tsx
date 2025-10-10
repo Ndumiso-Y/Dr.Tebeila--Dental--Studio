@@ -17,11 +17,33 @@ interface LineItem {
 
 export default function InvoiceNew() {
   const navigate = useNavigate();
-  const { tenantId } = useAuth();
+  const { tenantId, loading: authLoading, error: authError } = useAuth();
   const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [vatRates, setVATRates] = useState<VATRate[]>([]);
+
+  if (authLoading) {
+    return (
+      <Layout>
+        <div className="p-6 text-center">Loading account…</div>
+      </Layout>
+    );
+  }
+  if (authError) {
+    return (
+      <Layout>
+        <div className="p-6 text-center text-red-600">Error: {authError}</div>
+      </Layout>
+    );
+  }
+  if (!tenantId) {
+    return (
+      <Layout>
+        <div className="p-6 text-center">No tenant linked to this user.</div>
+      </Layout>
+    );
+  }
 
   // Form state
   const [customerId, setCustomerId] = useState('');
