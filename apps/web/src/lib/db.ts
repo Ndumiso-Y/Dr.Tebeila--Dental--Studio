@@ -1,5 +1,5 @@
-import Dexie, { Table } from 'dexie';
-import type { Invoice, InvoiceItem, Customer, Service } from './supabase';
+import Dexie, { type Table } from 'dexie';
+import type { Invoice, Customer, Service } from './supabase';
 
 // Offline draft invoice types
 export interface DraftInvoice {
@@ -132,7 +132,7 @@ export async function getDraftInvoiceWithItems(draftId: string) {
 
 // Get all unsynced drafts
 export async function getUnsyncedDrafts(): Promise<DraftInvoice[]> {
-  return db.draftInvoices.where('synced').equals(false).toArray();
+  return db.draftInvoices.where('synced').equals(0).toArray();
 }
 
 // Mark draft as synced

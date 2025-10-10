@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth, AuthGuard } from './contexts/AuthContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { DebugPanel } from './components/DebugPanel';
 import Login from './pages/Login';
 import InvoicesList from './pages/InvoicesList';
 import InvoiceNew from './pages/InvoiceNew';
@@ -80,10 +82,13 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AuthProvider>
+          <AppRoutes />
+          <DebugPanel />
+        </AuthProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }

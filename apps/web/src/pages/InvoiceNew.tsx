@@ -2,6 +2,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useState, useEffect, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase, Customer, Service, VATRate } from '../lib/supabase';
+import { safeQuery } from '../lib/safeQuery';
 import Layout from '../components/Layout';
 import { calculateLineTotals } from '../lib/db';
 
@@ -62,22 +63,42 @@ export default function InvoiceNew() {
     try {
       if (!tenantId) return; // wait until we know the user's tenant
 
+      // Use safeQuery with timeout and retry for all dropdown data
       const [customersRes, servicesRes, vatRatesRes] = await Promise.all([
-        supabase.from('customers').select('*')
-          .eq('tenant_id', tenantId).eq('is_active', true).order('name'),
-        supabase.from('services').select('*')
-          .eq('tenant_id', tenantId).eq('is_active', true).order('name'),
-        supabase.from('vat_rates').select('*')
-          .eq('tenant_id', tenantId).eq('is_active', true).order('rate'),
+        safeQuery(
+          () => supabase.from('customers').select('*')
+            .eq('tenant_id', tenantId).eq('is_active', true).order('name'),
+          { timeoutMs: 7000, retries: 2 }
+        ),
+        safeQuery(
+          () => supabase.from('services').select('*')
+            .eq('tenant_id', tenantId).eq('is_active', true).order('name'),
+          { timeoutMs: 7000, retries: 2 }
+        ),
+        safeQuery(
+          () => supabase.from('vat_rates').select('*')
+            .eq('tenant_id', tenantId).eq('is_active', true).order('rate'),
+          { timeoutMs: 7000, retries: 2 }
+        ),
       ]);
 
-      if (customersRes.error) throw customersRes.error;
-      if (servicesRes.error) throw servicesRes.error;
-      if (vatRatesRes.error) throw vatRatesRes.error;
+      if (customersRes.error) {
+        console.error('Error fetching customers:', customersRes.error);
+      } else if (customersRes.data) {
+        setCustomers(customersRes.data);
+      }
 
-      if (customersRes.data) setCustomers(customersRes.data);
-      if (servicesRes.data) setServices(servicesRes.data);
-      if (vatRatesRes.data) setVATRates(vatRatesRes.data);
+      if (servicesRes.error) {
+        console.error('Error fetching services:', servicesRes.error);
+      } else if (servicesRes.data) {
+        setServices(servicesRes.data);
+      }
+
+      if (vatRatesRes.error) {
+        console.error('Error fetching VAT rates:', vatRatesRes.error);
+      } else if (vatRatesRes.data) {
+        setVATRates(vatRatesRes.data);
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     }

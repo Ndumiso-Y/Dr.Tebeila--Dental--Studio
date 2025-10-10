@@ -34,11 +34,15 @@ export default function NavBar() {
           <div className="flex">
             {/* Logo */}
             <div className="flex-shrink-0 flex items-center">
-              <Link to="/invoices" className="flex items-center">
-                <div className="w-8 h-8 rounded bg-primary flex items-center justify-center text-white font-bold">
-                  DT
+              <Link to="/invoices" className="flex items-center space-x-2">
+                <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center overflow-hidden">
+                  <img
+                    src="/logo.png"
+                    alt="Dr.Tebeila Dental Studio"
+                    className="w-full h-full object-contain p-1"
+                  />
                 </div>
-                <span className="ml-2 text-lg font-semibold text-gray-900 hidden sm:block">
+                <span className="text-lg font-semibold text-gray-900 hidden sm:block">
                   Dr.Tebeila Dental
                 </span>
               </Link>

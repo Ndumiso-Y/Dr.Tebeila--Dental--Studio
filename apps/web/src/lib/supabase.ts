@@ -25,6 +25,18 @@ export const supabase = createClient(url, key, {
     persistSession: true,
     detectSessionInUrl: true,
   },
+  global: {
+    fetch: (input, init) => {
+      // Add 8s timeout to all fetch requests
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+      return fetch(input, {
+        ...init,
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeoutId));
+    },
+  },
 });
 
 // Database types (based on your schema)

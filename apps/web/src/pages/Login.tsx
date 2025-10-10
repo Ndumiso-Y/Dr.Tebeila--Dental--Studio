@@ -18,11 +18,24 @@ export default function Login() {
     setLoading(true);
 
     try {
+      console.log('Attempting login...');
       await signIn(email, password);
+      console.log('Login successful, navigating...');
       navigate('/invoices');
     } catch (err: any) {
       console.error('Login error:', err);
-      setError(err.message || 'Failed to sign in. Please check your credentials.');
+      console.error('Error details:', err.message, err.code);
+
+      // Show detailed error message
+      let errorMessage = err.message || 'Failed to sign in. Please check your credentials.';
+
+      if (errorMessage.includes('Profile fetch timeout')) {
+        errorMessage = 'Database is taking too long to respond. Please check your Supabase connection.';
+      } else if (errorMessage.includes('User profile not found')) {
+        errorMessage = 'User profile not found. Run db/fix-user-profile.sql in Supabase SQL Editor to create your profile.';
+      }
+
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -33,20 +46,12 @@ export default function Login() {
       <div className="max-w-md w-full">
         {/* Logo / Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary text-white mb-4">
-            <svg
-              className="w-10 h-10"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              />
-            </svg>
+          <div className="inline-flex items-center justify-center w-24 h-24 rounded-2xl bg-white shadow-xl mb-4 overflow-hidden">
+            <img
+              src="/logo.png"
+              alt="Dr.Tebeila Dental Studio"
+              className="w-full h-full object-contain p-3"
+            />
           </div>
           <h1 className="text-3xl font-bold text-gray-900">
             Dr.Tebeila Dental Studio

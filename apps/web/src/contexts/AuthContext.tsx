@@ -16,6 +16,7 @@ interface AuthState {
 interface AuthContextType extends AuthState {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,90 +33,152 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     error: null,
   });
 
-  // Safety: never spin forever (8s)
+  // Safety: fast-resolve if no session (3s max for initial check)
   useEffect(() => {
-    const t = setTimeout(() => setState((prev) => ({ ...prev, loading: false })), 8000);
+    const t = setTimeout(() => {
+      setState((prev) => {
+        // Only force-resolve if still loading
+        if (prev.loading) {
+          console.warn('⚠️ Auth initialization timeout - forcing resolution');
+          return { ...prev, loading: false, error: 'Authentication check timed out' };
+        }
+        return prev;
+      });
+    }, 3000);
     return () => clearTimeout(t);
   }, []);
 
-  // Fetch user profile after auth
+  // Fetch user profile after auth with timeout
   const fetchProfile = async (userId: string): Promise<UserProfile | null> => {
     try {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+      // Race against 5s timeout
+      const result = await Promise.race([
+        supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', userId)
+          .single(),
+        new Promise<{ data: null; error: any }>((_, reject) =>
+          setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
+        ),
+      ]);
 
-      if (error) {
-        console.error('Error fetching profile:', error);
+      if (result.error) {
+        console.error('Error fetching profile:', result.error);
         return null;
       }
 
-      return data;
+      return result.data;
     } catch (error) {
       console.error('Error fetching profile:', error);
       return null;
     }
   };
 
-  // Initialize auth state
+  // Expose refreshProfile for manual refresh
+  const refreshProfile = async () => {
+    if (!state.session?.user) return;
+
+    setState((prev) => ({ ...prev, loading: true, error: null }));
+
+    const profile = await fetchProfile(state.session.user.id);
+
+    if (!profile) {
+      setState((prev) => ({
+        ...prev,
+        loading: false,
+        error: 'Failed to refresh profile',
+      }));
+      return;
+    }
+
+    setState((prev) => ({
+      ...prev,
+      profile,
+      tenantId: profile.tenant_id || null,
+      role: profile.role || null,
+      fullName: profile.full_name || null,
+      loading: false,
+      error: profile.is_active ? null : 'Your profile is inactive. Contact support.',
+    }));
+  };
+
+  // Initialize auth state - fast-resolve pattern
   useEffect(() => {
     let mounted = true;
 
     async function init() {
-      const { data, error } = await supabase.auth.getSession();
-      if (error) {
-        if (mounted) {
+      try {
+        // Quick session check with timeout
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise<{ data: { session: null }; error: any }>(
+          (_, reject) => setTimeout(() => reject(new Error('Session check timeout')), 2000)
+        );
+
+        const { data, error } = await Promise.race([sessionPromise, timeoutPromise]);
+
+        if (!mounted) return;
+
+        if (error) {
+          console.error('Session check error:', error);
           setState((prev) => ({ ...prev, error: error.message, loading: false }));
+          return;
         }
-        return;
-      }
-      if (mounted) {
-        if (data.session?.user) {
-          const profile = await fetchProfile(data.session.user.id);
-          if (mounted) {
-            if (!profile) {
-              setState((prev) => ({
-                ...prev,
-                user: data.session.user,
-                session: data.session,
-                error: 'User profile not found.',
-                loading: false,
-              }));
-            } else if (!profile.is_active) {
-              setState((prev) => ({
-                ...prev,
-                user: data.session.user,
-                session: data.session,
-                profile,
-                error: 'Your profile is inactive. Contact support.',
-                loading: false,
-              }));
-            } else if (!profile.tenant_id) {
-              setState((prev) => ({
-                ...prev,
-                user: data.session.user,
-                session: data.session,
-                profile,
-                error: 'No tenant is linked to this user.',
-                loading: false,
-              }));
-            } else {
-              setState({
-                user: data.session.user,
-                session: data.session,
-                profile,
-                tenantId: profile.tenant_id,
-                role: profile.role,
-                fullName: profile.full_name,
-                loading: false,
-                error: null,
-              });
-            }
-          }
-        } else {
+
+        // No session - fast resolve
+        if (!data.session?.user) {
           setState((prev) => ({ ...prev, loading: false }));
+          return;
+        }
+
+        // Has session - set user immediately, fetch profile async
+        setState((prev) => ({
+          ...prev,
+          user: data.session.user,
+          session: data.session,
+          loading: false, // Resolve loading immediately
+        }));
+
+        // Fetch profile in background (non-blocking)
+        const profile = await fetchProfile(data.session.user.id);
+
+        if (!mounted) return;
+
+        if (!profile) {
+          setState((prev) => ({
+            ...prev,
+            error: 'User profile not found. Contact administrator.',
+          }));
+        } else if (!profile.is_active) {
+          setState((prev) => ({
+            ...prev,
+            profile,
+            error: 'Your profile is inactive. Contact support.',
+          }));
+        } else if (!profile.tenant_id) {
+          setState((prev) => ({
+            ...prev,
+            profile,
+            error: 'No tenant is linked to this user.',
+          }));
+        } else {
+          setState((prev) => ({
+            ...prev,
+            profile,
+            tenantId: profile.tenant_id,
+            role: profile.role,
+            fullName: profile.full_name,
+            error: null,
+          }));
+        }
+      } catch (error: any) {
+        if (mounted) {
+          console.error('Auth initialization error:', error);
+          setState((prev) => ({
+            ...prev,
+            loading: false,
+            error: error.message || 'Failed to initialize authentication',
+          }));
         }
       }
     }
@@ -258,7 +321,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ ...state, signIn, signOut }}>
+    <AuthContext.Provider value={{ ...state, signIn, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
