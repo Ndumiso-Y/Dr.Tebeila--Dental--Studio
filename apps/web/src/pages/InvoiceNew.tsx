@@ -35,31 +35,6 @@ export default function InvoiceNew() {
   const [vatRates, setVATRates] = useState<VATRate[]>([]);
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
 
-  useEffect(() => {
-    fetchData();
-  }, [tenantId]);
-
-  if (authLoading) {
-    return (
-      <Layout>
-        <div className="p-6 text-center">Loading account…</div>
-      </Layout>
-    );
-  }
-  if (authError) {
-    return (
-      <Layout>
-        <div className="p-6 text-center text-red-600">Error: {authError}</div>
-      </Layout>
-    );
-  }
-  if (!tenantId) {
-    return (
-      <Layout>
-        <div className="p-6 text-center">No tenant linked to this user.</div>
-      </Layout>
-    );
-  }
 
   const fetchData = async () => {
     try {
@@ -105,6 +80,32 @@ export default function InvoiceNew() {
       console.error('Error fetching data:', error);
     }
   };
+
+  useEffect(() => {
+    fetchData();
+  }, [tenantId]);
+
+  if (authLoading) {
+    return (
+      <Layout>
+        <div className="p-6 text-center">Loading account…</div>
+      </Layout>
+    );
+  }
+  if (authError) {
+    return (
+      <Layout>
+        <div className="p-6 text-center text-red-600">Error: {authError}</div>
+      </Layout>
+    );
+  }
+  if (!tenantId) {
+    return (
+      <Layout>
+        <div className="p-6 text-center">No tenant linked to this user.</div>
+      </Layout>
+    );
+  }
 
   const addLineItem = () => {
     const defaultVATRate = vatRates.find((v) => v.is_default) || vatRates[0];
