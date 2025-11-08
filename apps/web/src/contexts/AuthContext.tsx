@@ -36,6 +36,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const navigate = useNavigate();
   const sessionCacheRef = useRef<{ user: User; profile: UserProfile } | null>(null);
+  const signingInRef = useRef(false); // Throttle duplicate sign-in calls
+
+  // ✅ Step 1: Clear stale cache on boot (runs once)
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (!data?.session) {
+        console.info('[AUTH_BOOT] Clearing old cache');
+        localStorage.removeItem('supabase.auth.token');
+        sessionStorage.clear();
+      }
+    });
+  }, []);
 
   // ✅ Helper to fetch profile safely
   const fetchProfile = async (userId: string): Promise<UserProfile | null> => {
@@ -64,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function initAuth() {
       const initStart = Date.now();
-      console.log('[AUTH_INIT] Starting authentication initialization');
+      console.info('[AUTH_INIT] Booting auth sequence');
 
       try {
         // ✅ Path A: Warm up Supabase (non-blocking)
@@ -75,7 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // ✅ Path B: Session cache short-circuit
         if (sessionCacheRef.current) {
           const { user, profile } = sessionCacheRef.current;
-          console.log(`[SESSION_CACHE_HIT] Restored session in ${Date.now() - initStart}ms`);
+          console.info(`[SESSION_CACHE_HIT] Restored session in ${Date.now() - initStart}ms`);
           setState({
             user,
             session: null, // Will be refreshed by listener
@@ -101,14 +113,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }, 8000);
 
-        const { data, error } = await supabase.auth.getSession();
-        if (error) throw error;
+        // ✅ Step 3: Back-off retry for session check
+        let session = null;
+        let user = null;
 
-        const session = data?.session ?? null;
-        const user = session?.user ?? null;
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            const { data, error } = await supabase.auth.getSession();
+            if (error) throw error;
+
+            session = data?.session ?? null;
+            user = session?.user ?? null;
+
+            if (session) break; // Success
+
+            // Wait before retry (1s, 2s back-off)
+            if (attempt < 2) {
+              await new Promise(r => setTimeout(r, attempt * 1000));
+            }
+          } catch (err) {
+            console.warn(`[SESSION_RETRY] Attempt ${attempt} failed`, err);
+            if (attempt === 2) throw err;
+          }
+        }
 
         const sessionDuration = Date.now() - initStart;
-        console.log('[SESSION_CHECK]', user ? `User found: ${user.email} (${sessionDuration}ms)` : 'No active session');
+        console.info('[AUTH_SESSION_OK]', user ? `User found: ${user.email} (${sessionDuration}ms)` : 'No active session');
 
         if (!active) return;
 
@@ -121,13 +151,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Found session → load profile
-        console.log('[PROFILE_FETCH] Loading profile for user:', user.id);
+        console.info('[PROFILE_FETCH] Loading profile for user:', user.id);
         const profileStart = Date.now();
         const profile = await fetchProfile(user.id);
         const profileDuration = Date.now() - profileStart;
 
         if (profile) {
-          console.log(`[PROFILE_OK] Loaded in ${profileDuration}ms`, {
+          console.info('[AUTH_PROFILE_OK]', profile.full_name, `(${profileDuration}ms)`, {
             tenant: profile.tenant_id,
             role: profile.role,
             active: profile.is_active
@@ -153,9 +183,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               : 'Your profile is inactive. Contact admin.'
             : 'User profile not found.',
         });
-        console.log(`[AUTH_COMPLETE] Session resolved (total: ${Date.now() - initStart}ms)`);
+        console.info('[AUTH_COMPLETE]');
       } catch (err: any) {
-        console.error('[AUTH_ERROR]', err);
+        console.error('[AUTH_ERROR]', err.message || err);
         clearTimeout(timeoutId);
         if (active)
           setState((prev) => ({
@@ -233,8 +263,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // ✅ Explicit Sign-In (no auto redirect)
   const signIn = async (email: string, password: string) => {
+    // ✅ Step 2: Throttle duplicate sign-in calls
+    if (signingInRef.current) {
+      console.warn('[AUTH_GUARD] Sign-in blocked – already in progress');
+      return;
+    }
+
+    signingInRef.current = true;
     const signinStart = Date.now();
-    console.log('[SIGNIN_START]', email);
+    console.info('[SIGNIN_START]', email);
     setState((prev) => ({ ...prev, loading: true, error: null }));
 
     try {
@@ -278,11 +315,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       const totalDuration = Date.now() - signinStart;
-      console.log(`[SIGNIN_COMPLETE] Total login time: ${totalDuration}ms`);
+      console.info(`[SIGNIN_COMPLETE] Total login time: ${totalDuration}ms`);
 
+      signingInRef.current = false; // Reset throttle
       navigate('/invoices/new'); // redirect after manual login → new invoice
     } catch (err: any) {
-      console.error('[SIGNIN_ERROR]', err);
+      console.error('[SIGNIN_ERROR]', err.message || err);
+      signingInRef.current = false; // Reset throttle on error
       setState((prev) => ({
         ...prev,
         loading: false,
@@ -294,11 +333,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // ✅ Safe Sign-Out
   const signOut = async () => {
-    console.log('[LOGOUT_START] Signing out user');
+    console.info('[LOGOUT_START] Signing out user');
     try {
-      await supabase.auth.signOut();
-      // ✅ Clear session cache
+      // ✅ Step 4: Clear cache on logout with scope: local
+      await supabase.auth.signOut({ scope: 'local' });
+      localStorage.clear();
+      sessionStorage.clear();
+
+      // ✅ Clear session cache ref
       sessionCacheRef.current = null;
+      signingInRef.current = false; // Reset throttle
+
       setState({
         user: null,
         session: null,
@@ -309,10 +354,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading: false,
         error: null,
       });
-      console.log('[LOGOUT_COMPLETE] State and cache cleared, redirecting to login');
+      console.info('[LOGOUT_COMPLETE] State and cache cleared, redirecting to login');
       navigate('/login');
     } catch (err: any) {
-      console.error('[LOGOUT_ERROR]', err);
+      console.error('[LOGOUT_ERROR]', err.message || err);
       setState((prev) => ({ ...prev, error: err.message }));
     }
   };
