@@ -73,8 +73,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const { data, error } = await withTimeout(
         queryPromise as Promise<any>,
-        5000,
-        'Profile fetch timeout after 5s'
+        15000,
+        'Profile fetch timeout after 15s'
       );
 
       const duration = Date.now() - start;
@@ -231,17 +231,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState((prev) => ({ ...prev, loading: true, error: null }));
 
     try {
+      // Step 0: Wake up Supabase database first (critical for cold starts)
+      console.info('[SIGNIN_WARMUP] Waking database...');
+      await warmupSupabase().catch(() => {
+        // Ignore warmup errors - continue anyway
+      });
+
       // Step 1: Authenticate with Supabase
       const authStart = Date.now();
       console.info('[SIGNIN_AUTH] Calling Supabase signInWithPassword...');
 
-      // Race against 10s timeout
+      // Race against 15s timeout (increased for cold starts)
       const authPromise = supabase.auth.signInWithPassword({
         email,
         password,
       });
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Login timeout after 10s')), 10000)
+        setTimeout(() => reject(new Error('Login timeout after 15s')), 15000)
       );
       const { data, error } = await Promise.race([authPromise, timeoutPromise]);
 
