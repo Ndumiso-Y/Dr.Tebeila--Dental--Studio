@@ -35,6 +35,10 @@ export default function InvoiceNew() {
   const [vatRates, setVATRates] = useState<VATRate[]>([]);
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
 
+  useEffect(() => {
+    fetchData();
+  }, [tenantId]);
+
   if (authLoading) {
     return (
       <Layout>
@@ -56,10 +60,6 @@ export default function InvoiceNew() {
       </Layout>
     );
   }
-
-  useEffect(() => {
-    fetchData();
-  }, [tenantId]);
 
   const fetchData = async () => {
     try {
