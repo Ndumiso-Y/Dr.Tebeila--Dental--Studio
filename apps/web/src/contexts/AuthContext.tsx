@@ -38,6 +38,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const sessionCacheRef = useRef<{ user: User; profile: UserProfile } | null>(null);
   const signingInRef = useRef(false); // Throttle duplicate sign-in calls
   const manualSignInRef = useRef(false); // Flag to prevent auth listener race
+  // ✅ Timeout wrapper for any async operation
+  const withTimeout = <T,>(promise: Promise<T>, ms: number, errorMsg: string): Promise<T> => {
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(errorMsg)), ms)
+    );
+    return Promise.race([promise, timeout]);
+  };
+
 
   // ✅ Step 1: Clear stale cache on boot (runs once)
   // DISABLED: getSession() is too slow on Supabase free tier
@@ -54,19 +62,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // ✅ Helper to fetch profile safely
   const fetchProfile = async (userId: string): Promise<UserProfile | null> => {
     try {
-      const { data, error } = await supabase
+      console.info('[PROFILE_FETCH] Fetching for user:', userId);
+      const start = Date.now();
+
+      const queryPromise = supabase
         .from('user_profiles')
         .select('*')
         .eq('id', userId)
         .single();
 
+      const { data, error } = await withTimeout(
+        queryPromise as Promise<any>,
+        5000,
+        'Profile fetch timeout after 5s'
+      );
+
+      const duration = Date.now() - start;
+
       if (error || !data) {
-        console.error('Profile fetch failed:', error);
+        console.error(`[PROFILE_FETCH_ERROR] Failed in ${duration}ms:`, error);
         return null;
       }
+
+      console.info(`[PROFILE_FETCH_OK] Got profile in ${duration}ms`);
       return data;
     } catch (err) {
-      console.error('Profile fetch exception:', err);
+      console.error('[PROFILE_FETCH_EXCEPTION]', err);
       return null;
     }
   };
@@ -214,10 +235,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const authStart = Date.now();
       console.info('[SIGNIN_AUTH] Calling Supabase signInWithPassword...');
 
-      const { data, error } = await supabase.auth.signInWithPassword({
+      // Race against 10s timeout
+      const authPromise = supabase.auth.signInWithPassword({
         email,
         password,
       });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Login timeout after 10s')), 10000)
+      );
+      const { data, error } = await Promise.race([authPromise, timeoutPromise]);
 
       if (error) {
         console.error('[SIGNIN_AUTH_ERROR]', error.message);
