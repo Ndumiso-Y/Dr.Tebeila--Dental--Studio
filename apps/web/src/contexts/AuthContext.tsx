@@ -37,6 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const sessionCacheRef = useRef<{ user: User; profile: UserProfile } | null>(null);
   const signingInRef = useRef(false); // Throttle duplicate sign-in calls
+  const manualSignInRef = useRef(false); // Flag to prevent auth listener race
 
   // ✅ Step 1: Clear stale cache on boot (runs once)
   useEffect(() => {
@@ -204,6 +205,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!active) return;
 
+      // ✅ Skip listener if manual sign-in is handling auth
+      if (manualSignInRef.current) {
+        console.info('[AUTH_LISTENER] Skipping - manual sign-in in progress');
+        return;
+      }
+
       if (event === 'SIGNED_OUT' || !session) {
         // clear everything and go to login
         setState({
@@ -221,6 +228,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (session?.user) {
+        console.info('[AUTH_LISTENER] Processing auth state change:', event);
         const profile = await fetchProfile(session.user.id);
         setState({
           user: session.user,
@@ -270,6 +278,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     signingInRef.current = true;
+    manualSignInRef.current = true; // Prevent auth listener race
     const signinStart = Date.now();
     console.info('[SIGNIN_START]', email);
     setState((prev) => ({ ...prev, loading: true, error: null }));
@@ -347,6 +356,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.info(`[SIGNIN_COMPLETE] Total login time: ${totalDuration}ms - Redirecting to /invoices/new`);
 
       signingInRef.current = false;
+      manualSignInRef.current = false; // Re-enable auth listener
       navigate('/invoices/new');
 
     } catch (err: any) {
@@ -354,6 +364,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('[SIGNIN_ERROR]', errorMsg);
 
       signingInRef.current = false;
+      manualSignInRef.current = false; // Re-enable auth listener
       setState((prev) => ({
         ...prev,
         loading: false,
