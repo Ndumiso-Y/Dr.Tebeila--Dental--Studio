@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { isSupabaseConfigured } from '../lib/supabase';
 
 export default function Login() {
+  console.log('[LOGIN_COMPONENT] Login component mounted');
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -12,15 +14,20 @@ export default function Login() {
   const navigate = useNavigate();
   const isConfigured = isSupabaseConfigured();
 
+  console.log('[LOGIN_COMPONENT] Supabase configured:', isConfigured);
+
   const handleSubmit = async (e: FormEvent) => {
+    console.log('[LOGIN_FORM] Form submitted - preventDefault');
     e.preventDefault();
+
+    console.log('[LOGIN_FORM] Setting states, email:', email);
     setError('');
     setLoading(true);
 
     try {
-      console.info('[LOGIN_FORM] Starting login for:', email);
+      console.info('[LOGIN_FORM] About to call signIn()...');
       await signIn(email, password);
-      console.info('[LOGIN_FORM] Login successful - AuthContext will navigate');
+      console.info('[LOGIN_FORM] signIn() completed successfully');
     } catch (err: any) {
       console.error('[LOGIN_FORM_ERROR]', err.message || err);
 
