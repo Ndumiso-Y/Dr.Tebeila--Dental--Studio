@@ -23,8 +23,8 @@ function AppRoutes() {
         path="/login"
         element={
           user
-            ? <Navigate to="/invoices" replace />   // already logged in
-            : <Login />                             // show login page
+            ? <Navigate to="/invoices/new" replace />   // already logged in → new invoice
+            : <Login />                                  // show login page
         }
       />
 
@@ -75,7 +75,7 @@ function AppRoutes() {
         path="/"
         element={
           user
-            ? <Navigate to="/invoices" replace />
+            ? <Navigate to="/invoices/new" replace />
             : <Navigate to="/login" replace />
         }
       />

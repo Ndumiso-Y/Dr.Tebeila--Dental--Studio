@@ -5,6 +5,8 @@ import { supabase, Customer, Service, VATRate } from '../lib/supabase';
 import { safeQuery } from '../lib/safeQuery';
 import Layout from '../components/Layout';
 import { calculateLineTotals } from '../lib/db';
+import CreatablePatientSelect from '../components/CreatablePatientSelect';
+import { generateInvoiceNumber } from '../lib/invoiceUtils';
 
 interface LineItem {
   id: string;
@@ -20,7 +22,7 @@ export default function InvoiceNew() {
   const navigate = useNavigate();
   const { tenantId, loading: authLoading, error: authError } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [patients, setPatients] = useState<Customer[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [vatRates, setVATRates] = useState<VATRate[]>([]);
 
@@ -47,7 +49,7 @@ export default function InvoiceNew() {
   }
 
   // Form state
-  const [customerId, setCustomerId] = useState('');
+  const [patientId, setPatientId] = useState('');
   const [invoiceDate, setInvoiceDate] = useState(
     new Date().toISOString().split('T')[0]
   );
@@ -83,9 +85,9 @@ export default function InvoiceNew() {
       ]);
 
       if (customersRes.error) {
-        console.error('Error fetching customers:', customersRes.error);
+        console.error('Error fetching patients:', customersRes.error);
       } else if (customersRes.data) {
-        setCustomers(customersRes.data);
+        setPatients(customersRes.data);
       }
 
       if (servicesRes.error) {
@@ -174,11 +176,15 @@ export default function InvoiceNew() {
     };
   };
 
+  const handlePatientCreated = (newPatient: Customer) => {
+    setPatients([...patients, newPatient]);
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!customerId) {
-      alert('Please select a customer');
+    if (!patientId) {
+      alert('Please select a patient');
       return;
     }
 
@@ -192,11 +198,15 @@ export default function InvoiceNew() {
     try {
       const { subtotal, totalVAT, total } = calculateTotals();
 
+      // Generate unique invoice number
+      const invoiceNumber = await generateInvoiceNumber(tenantId!);
+
       // Create invoice
       const { data: invoice, error: invoiceError } = await supabase
         .from('invoices')
         .insert({
-          customer_id: customerId,
+          invoice_number: invoiceNumber,
+          customer_id: patientId,
           invoice_date: invoiceDate,
           due_date: dueDate || null,
           status: 'Draft',
@@ -210,6 +220,7 @@ export default function InvoiceNew() {
         .single();
 
       if (invoiceError) throw invoiceError;
+      console.log('[INVOICE_CREATED]', invoiceNumber, invoice.id);
 
       // Create line items
       const items = lineItems.map((item, index) => {
@@ -295,23 +306,15 @@ export default function InvoiceNew() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="customer" className="label">
-                Customer *
+              <label htmlFor="patient" className="label">
+                Patient *
               </label>
-              <select
-                id="customer"
-                value={customerId}
-                onChange={(e) => setCustomerId(e.target.value)}
-                className="input"
-                required
-              >
-                <option value="">Select a customer</option>
-                {customers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.name}
-                  </option>
-                ))}
-              </select>
+              <CreatablePatientSelect
+                value={patientId}
+                onChange={setPatientId}
+                patients={patients}
+                onPatientCreated={handlePatientCreated}
+              />
             </div>
 
             <div>

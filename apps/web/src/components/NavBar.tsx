@@ -8,9 +8,9 @@ export default function NavBar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navigation = [
-    { name: 'Invoices', href: '/invoices', icon: 'document' },
     { name: 'New Invoice', href: '/invoices/new', icon: 'plus' },
-    { name: 'Customers', href: '/customers', icon: 'users' },
+    { name: 'Invoices', href: '/invoices', icon: 'document' },
+    { name: 'Patients', href: '/customers', icon: 'users' },
     { name: 'Settings', href: '/settings', icon: 'cog' },
   ];
 
