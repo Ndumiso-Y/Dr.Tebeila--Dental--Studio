@@ -274,31 +274,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.info('[SIGNIN_START]', email);
     setState((prev) => ({ ...prev, loading: true, error: null }));
 
+    // Create a timeout promise (8 seconds for sign-in)
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Sign-in operation timeout')), 8000)
+    );
+
     try {
       const authStart = Date.now();
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (error) throw error;
+      console.info('[SIGNIN_AUTH] Calling Supabase auth...');
+
+      // Race auth call against timeout
+      const result: any = await Promise.race([
+        supabase.auth.signInWithPassword({ email, password }),
+        timeoutPromise
+      ]);
+
+      const { data, error } = result;
+      if (error) {
+        console.error('[SIGNIN_AUTH_ERROR]', error.message);
+        throw error;
+      }
 
       const user = data.user;
-      if (!user) throw new Error('Login failed.');
+      if (!user) throw new Error('Login failed - no user returned.');
 
       const authDuration = Date.now() - authStart;
-      console.log(`[SIGNIN_SUCCESS] User authenticated in ${authDuration}ms:`, user.id);
+      console.info(`[SIGNIN_SUCCESS] User authenticated in ${authDuration}ms:`, user.id);
 
       const profileStart = Date.now();
+      console.info('[SIGNIN_PROFILE_FETCH] Fetching user profile...');
       const profile = await fetchProfile(user.id);
       const profileDuration = Date.now() - profileStart;
 
-      if (!profile) throw new Error('User profile not found.');
-      if (!profile.is_active)
+      if (!profile) {
+        console.error('[SIGNIN_PROFILE_ERROR] Profile not found in database');
+        throw new Error('User profile not found.');
+      }
+      if (!profile.is_active) {
+        console.error('[SIGNIN_PROFILE_ERROR] Profile is inactive');
         throw new Error('Account inactive. Contact administrator.');
-      if (!profile.tenant_id)
+      }
+      if (!profile.tenant_id) {
+        console.error('[SIGNIN_PROFILE_ERROR] No tenant linked');
         throw new Error('No tenant linked to this user.');
+      }
 
-      console.log(`[SIGNIN_PROFILE_OK] Profile loaded in ${profileDuration}ms, redirecting to /invoices`);
+      console.info(`[SIGNIN_PROFILE_OK] Profile loaded in ${profileDuration}ms:`, profile.full_name);
 
       // ✅ Update session cache for faster subsequent loads
       sessionCacheRef.current = { user, profile };
