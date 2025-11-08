@@ -280,7 +280,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const totalDuration = Date.now() - signinStart;
       console.log(`[SIGNIN_COMPLETE] Total login time: ${totalDuration}ms`);
 
-      navigate('/invoices'); // redirect after manual login
+      navigate('/invoices/new'); // redirect after manual login → new invoice
     } catch (err: any) {
       console.error('[SIGNIN_ERROR]', err);
       setState((prev) => ({
