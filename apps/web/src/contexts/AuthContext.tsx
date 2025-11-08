@@ -176,6 +176,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (session?.user) {
         console.info('[AUTH_LISTENER] Processing auth state change:', event);
+
+        // ✅ Try cached profile first (instant load on refresh)
+        const cachedProfile = sessionCacheRef.current?.profile;
+        if (cachedProfile && cachedProfile.id === session.user.id) {
+          console.info('[AUTH_LISTENER] Using cached profile - skip fetch');
+          setState({
+            user: session.user,
+            session,
+            profile: cachedProfile,
+            tenantId: cachedProfile.tenant_id,
+            role: cachedProfile.role,
+            fullName: cachedProfile.full_name,
+            loading: false,
+            error: null,
+          });
+          return;
+        }
+
+        // No cache - fetch from database
+        console.info('[AUTH_LISTENER] No cache - fetching profile');
         const profile = await fetchProfile(session.user.id);
         setState({
           user: session.user,
@@ -191,6 +211,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               : 'Your profile is inactive. Contact admin.'
             : 'User profile not found.',
         });
+
+        // Update cache for next time
+        if (profile) {
+          sessionCacheRef.current = { user: session.user, profile };
+        }
       }
     });
 
