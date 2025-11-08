@@ -17,22 +17,36 @@ export default function Login() {
     setError('');
     setLoading(true);
 
+    // Hard timeout for sign-in (10 seconds max)
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Sign-in timeout after 10 seconds')), 10000)
+    );
+
     try {
-      console.log('Attempting login...');
-      await signIn(email, password);
-      console.log('Login successful, navigating...');
-      navigate('/invoices');
+      console.log('[LOGIN_FORM] Attempting login for:', email);
+
+      // Race between signIn and timeout
+      await Promise.race([
+        signIn(email, password),
+        timeoutPromise
+      ]);
+
+      console.log('[LOGIN_FORM] Login successful, AuthContext will handle navigation');
+      // Don't navigate here - AuthContext handles it
     } catch (err: any) {
-      console.error('Login error:', err);
-      console.error('Error details:', err.message, err.code);
+      console.error('[LOGIN_FORM_ERROR]', err.message || err);
 
       // Show detailed error message
       let errorMessage = err.message || 'Failed to sign in. Please check your credentials.';
 
-      if (errorMessage.includes('Profile fetch timeout')) {
+      if (errorMessage.includes('timeout')) {
+        errorMessage = 'Login is taking too long. Please check your internet connection and try again.';
+      } else if (errorMessage.includes('Profile fetch timeout')) {
         errorMessage = 'Database is taking too long to respond. Please check your Supabase connection.';
       } else if (errorMessage.includes('User profile not found')) {
         errorMessage = 'User profile not found. Run db/fix-user-profile.sql in Supabase SQL Editor to create your profile.';
+      } else if (errorMessage.includes('Invalid login credentials')) {
+        errorMessage = 'Invalid email or password. Please check your credentials.';
       }
 
       setError(errorMessage);
