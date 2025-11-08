@@ -9,26 +9,26 @@ import InvoiceDetail from './pages/InvoiceDetail';
 import CustomersList from './pages/CustomersList';
 import Settings from './pages/Settings';
 
+/* ===========================================================
+   Internal routing logic with proper redirects
+   =========================================================== */
 function AppRoutes() {
-  const { user, loading } = useAuth();
+  const { user } = useAuth();
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
+  // ✅ Routes (loading handled by AuthGuard on protected routes)
   return (
     <Routes>
+      {/* --- Public --- */}
       <Route
         path="/login"
-        element={user ? <Navigate to="/invoices" replace /> : <Login />}
+        element={
+          user
+            ? <Navigate to="/invoices" replace />   // already logged in
+            : <Login />                             // show login page
+        }
       />
+
+      {/* --- Protected routes --- */}
       <Route
         path="/invoices"
         element={
@@ -69,10 +69,14 @@ function AppRoutes() {
           </AuthGuard>
         }
       />
+
+      {/* --- Default redirect --- */}
       <Route
         path="/"
         element={
-          user ? <Navigate to="/invoices" replace /> : <Navigate to="/login" replace />
+          user
+            ? <Navigate to="/invoices" replace />
+            : <Navigate to="/login" replace />
         }
       />
       <Route path="*" element={<Navigate to="/" replace />} />
@@ -80,6 +84,9 @@ function AppRoutes() {
   );
 }
 
+/* ===========================================================
+   Top-level wrapper
+   =========================================================== */
 export default function App() {
   return (
     <ErrorBoundary>

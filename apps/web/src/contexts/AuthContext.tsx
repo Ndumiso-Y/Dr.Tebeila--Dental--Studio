@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { supabase, UserProfile, UserRole } from '../lib/supabase';
+import { supabase, UserProfile, UserRole, warmupSupabase } from '../lib/supabase';
+import { useNavigate } from 'react-router-dom';
 
 interface AuthState {
   user: User | null;
@@ -33,209 +34,148 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     error: null,
   });
 
-  // Safety: fast-resolve if no session (3s max for initial check)
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setState((prev) => {
-        // Only force-resolve if still loading
-        if (prev.loading) {
-          console.warn('⚠️ Auth initialization timeout - forcing resolution');
-          return { ...prev, loading: false, error: 'Authentication check timed out' };
-        }
-        return prev;
-      });
-    }, 3000);
-    return () => clearTimeout(t);
-  }, []);
+  const navigate = useNavigate();
+  const sessionCacheRef = useRef<{ user: User; profile: UserProfile } | null>(null);
 
-  // Fetch user profile after auth with timeout
+  // ✅ Helper to fetch profile safely
   const fetchProfile = async (userId: string): Promise<UserProfile | null> => {
     try {
-      // Race against 5s timeout
-      const result = await Promise.race([
-        supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('id', userId)
-          .single(),
-        new Promise<{ data: null; error: any }>((_, reject) =>
-          setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
-        ),
-      ]);
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
 
-      if (result.error) {
-        console.error('Error fetching profile:', result.error);
+      if (error || !data) {
+        console.error('Profile fetch failed:', error);
         return null;
       }
-
-      return result.data;
-    } catch (error) {
-      console.error('Error fetching profile:', error);
+      return data;
+    } catch (err) {
+      console.error('Profile fetch exception:', err);
       return null;
     }
   };
 
-  // Expose refreshProfile for manual refresh
-  const refreshProfile = async () => {
-    if (!state.session?.user) return;
-
-    setState((prev) => ({ ...prev, loading: true, error: null }));
-
-    const profile = await fetchProfile(state.session.user.id);
-
-    if (!profile) {
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        error: 'Failed to refresh profile',
-      }));
-      return;
-    }
-
-    setState((prev) => ({
-      ...prev,
-      profile,
-      tenantId: profile.tenant_id || null,
-      role: profile.role || null,
-      fullName: profile.full_name || null,
-      loading: false,
-      error: profile.is_active ? null : 'Your profile is inactive. Contact support.',
-    }));
-  };
-
-  // Initialize auth state - fast-resolve pattern
+  // ✅ Initialize session (runs once)
   useEffect(() => {
-    let mounted = true;
+    let active = true;
+    let timeoutId: NodeJS.Timeout;
 
-    async function init() {
+    async function initAuth() {
+      const initStart = Date.now();
+      console.log('[AUTH_INIT] Starting authentication initialization');
+
       try {
-        // Quick session check with timeout
-        const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise<{ data: { session: null }; error: any }>(
-          (_, reject) => setTimeout(() => reject(new Error('Session check timeout')), 2000)
-        );
+        // ✅ Path A: Warm up Supabase (non-blocking)
+        warmupSupabase().catch(() => {
+          // Best effort - continue even if warmup fails
+        });
 
-        const { data, error } = await Promise.race([sessionPromise, timeoutPromise]);
-
-        if (!mounted) return;
-
-        if (error) {
-          console.error('Session check error:', error);
-          setState((prev) => ({ ...prev, error: error.message, loading: false }));
+        // ✅ Path B: Session cache short-circuit
+        if (sessionCacheRef.current) {
+          const { user, profile } = sessionCacheRef.current;
+          console.log(`[SESSION_CACHE_HIT] Restored session in ${Date.now() - initStart}ms`);
+          setState({
+            user,
+            session: null, // Will be refreshed by listener
+            profile,
+            tenantId: profile.tenant_id,
+            role: profile.role,
+            fullName: profile.full_name,
+            loading: false,
+            error: null,
+          });
           return;
         }
 
-        // No session - fast resolve
-        if (!data.session?.user) {
+        // ✅ Path C: Adaptive timeout (8s for initial cold start)
+        timeoutId = setTimeout(() => {
+          if (active) {
+            console.warn('[AUTH_TIMEOUT] Auth initialization exceeded 8s, forcing loading: false');
+            setState((prev) => ({
+              ...prev,
+              loading: false,
+              error: 'Authentication timeout. Please refresh and try again.',
+            }));
+          }
+        }, 8000);
+
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
+
+        const session = data?.session ?? null;
+        const user = session?.user ?? null;
+
+        const sessionDuration = Date.now() - initStart;
+        console.log('[SESSION_CHECK]', user ? `User found: ${user.email} (${sessionDuration}ms)` : 'No active session');
+
+        if (!active) return;
+
+        if (!user) {
+          // No active session → stay on login
+          clearTimeout(timeoutId);
+          console.log(`[AUTH_COMPLETE] No session, ready for login (${Date.now() - initStart}ms)`);
           setState((prev) => ({ ...prev, loading: false }));
           return;
         }
 
-        // Has session - set user immediately, fetch profile async
-        setState((prev) => ({
-          ...prev,
-          user: data.session.user,
-          session: data.session,
-          loading: false, // Resolve loading immediately
-        }));
+        // Found session → load profile
+        console.log('[PROFILE_FETCH] Loading profile for user:', user.id);
+        const profileStart = Date.now();
+        const profile = await fetchProfile(user.id);
+        const profileDuration = Date.now() - profileStart;
 
-        // Fetch profile in background (non-blocking)
-        const profile = await fetchProfile(data.session.user.id);
-
-        if (!mounted) return;
-
-        if (!profile) {
-          setState((prev) => ({
-            ...prev,
-            error: 'User profile not found. Contact administrator.',
-          }));
-        } else if (!profile.is_active) {
-          setState((prev) => ({
-            ...prev,
-            profile,
-            error: 'Your profile is inactive. Contact support.',
-          }));
-        } else if (!profile.tenant_id) {
-          setState((prev) => ({
-            ...prev,
-            profile,
-            error: 'No tenant is linked to this user.',
-          }));
-        } else {
-          setState((prev) => ({
-            ...prev,
-            profile,
-            tenantId: profile.tenant_id,
+        if (profile) {
+          console.log(`[PROFILE_OK] Loaded in ${profileDuration}ms`, {
+            tenant: profile.tenant_id,
             role: profile.role,
-            fullName: profile.full_name,
-            error: null,
-          }));
+            active: profile.is_active
+          });
+          // ✅ Cache for next load
+          sessionCacheRef.current = { user, profile };
+        } else {
+          console.error('[PROFILE_ERROR] Profile not found for user:', user.id);
         }
-      } catch (error: any) {
-        if (mounted) {
-          console.error('Auth initialization error:', error);
+
+        clearTimeout(timeoutId);
+        setState({
+          user,
+          session,
+          profile,
+          tenantId: profile?.tenant_id ?? null,
+          role: profile?.role ?? null,
+          fullName: profile?.full_name ?? null,
+          loading: false,
+          error: profile
+            ? profile.is_active
+              ? null
+              : 'Your profile is inactive. Contact admin.'
+            : 'User profile not found.',
+        });
+        console.log(`[AUTH_COMPLETE] Session resolved (total: ${Date.now() - initStart}ms)`);
+      } catch (err: any) {
+        console.error('[AUTH_ERROR]', err);
+        clearTimeout(timeoutId);
+        if (active)
           setState((prev) => ({
             ...prev,
             loading: false,
-            error: error.message || 'Failed to initialize authentication',
+            error: err.message || 'Failed to initialize authentication',
           }));
-        }
       }
     }
 
-    init();
+    initAuth();
 
+    // ✅ Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        const profile = await fetchProfile(session.user.id);
-        if (!profile) {
-          setState({
-            user: session.user,
-            session,
-            profile: null,
-            tenantId: null,
-            role: null,
-            fullName: null,
-            loading: false,
-            error: 'User profile not found.',
-          });
-        } else if (!profile.is_active) {
-          setState({
-            user: session.user,
-            session,
-            profile,
-            tenantId: null,
-            role: profile.role,
-            fullName: profile.full_name,
-            loading: false,
-            error: 'Your profile is inactive. Contact support.',
-          });
-        } else if (!profile.tenant_id) {
-          setState({
-            user: session.user,
-            session,
-            profile,
-            tenantId: null,
-            role: profile.role,
-            fullName: profile.full_name,
-            loading: false,
-            error: 'No tenant is linked to this user.',
-          });
-        } else {
-          setState({
-            user: session.user,
-            session,
-            profile,
-            tenantId: profile.tenant_id,
-            role: profile.role,
-            fullName: profile.full_name,
-            loading: false,
-            error: null,
-          });
-        }
-      } else {
+      if (!active) return;
+
+      if (event === 'SIGNED_OUT' || !session) {
+        // clear everything and go to login
         setState({
           user: null,
           session: null,
@@ -246,64 +186,119 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           loading: false,
           error: null,
         });
+        navigate('/login');
+        return;
+      }
+
+      if (session?.user) {
+        const profile = await fetchProfile(session.user.id);
+        setState({
+          user: session.user,
+          session,
+          profile,
+          tenantId: profile?.tenant_id ?? null,
+          role: profile?.role ?? null,
+          fullName: profile?.full_name ?? null,
+          loading: false,
+          error: profile
+            ? profile.is_active
+              ? null
+              : 'Your profile is inactive. Contact admin.'
+            : 'User profile not found.',
+        });
       }
     });
 
     return () => {
-      mounted = false;
+      active = false;
+      clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
-  }, []);
+  }, [navigate]);
 
+  // ✅ Manual profile refresh
+  const refreshProfile = async () => {
+    if (!state.user) return;
+    setState((prev) => ({ ...prev, loading: true }));
+    const profile = await fetchProfile(state.user.id);
+    setState((prev) => ({
+      ...prev,
+      profile,
+      tenantId: profile?.tenant_id ?? null,
+      role: profile?.role ?? null,
+      fullName: profile?.full_name ?? null,
+      loading: false,
+    }));
+  };
+
+  // ✅ Explicit Sign-In (no auto redirect)
   const signIn = async (email: string, password: string) => {
+    const signinStart = Date.now();
+    console.log('[SIGNIN_START]', email);
     setState((prev) => ({ ...prev, loading: true, error: null }));
+
     try {
+      const authStart = Date.now();
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-
       if (error) throw error;
 
-      if (data.user) {
-        const profile = await fetchProfile(data.user.id);
+      const user = data.user;
+      if (!user) throw new Error('Login failed.');
 
-        if (!profile) {
-          throw new Error('User profile not found. Please contact administrator.');
-        }
+      const authDuration = Date.now() - authStart;
+      console.log(`[SIGNIN_SUCCESS] User authenticated in ${authDuration}ms:`, user.id);
 
-        if (!profile.is_active) {
-          await supabase.auth.signOut();
-          throw new Error('Your account is inactive. Please contact administrator.');
-        }
+      const profileStart = Date.now();
+      const profile = await fetchProfile(user.id);
+      const profileDuration = Date.now() - profileStart;
 
-        if (!profile.tenant_id) {
-          throw new Error('No tenant is linked to this user. Please contact administrator.');
-        }
+      if (!profile) throw new Error('User profile not found.');
+      if (!profile.is_active)
+        throw new Error('Account inactive. Contact administrator.');
+      if (!profile.tenant_id)
+        throw new Error('No tenant linked to this user.');
 
-        setState({
-          user: data.user,
-          session: data.session,
-          profile,
-          tenantId: profile.tenant_id,
-          role: profile.role,
-          fullName: profile.full_name,
-          loading: false,
-          error: null,
-        });
-      }
-    } catch (error: any) {
-      setState((prev) => ({ ...prev, loading: false, error: error.message }));
-      throw error;
+      console.log(`[SIGNIN_PROFILE_OK] Profile loaded in ${profileDuration}ms, redirecting to /invoices`);
+
+      // ✅ Update session cache for faster subsequent loads
+      sessionCacheRef.current = { user, profile };
+
+      setState({
+        user,
+        session: data.session,
+        profile,
+        tenantId: profile.tenant_id,
+        role: profile.role,
+        fullName: profile.full_name,
+        loading: false,
+        error: null,
+      });
+
+      const totalDuration = Date.now() - signinStart;
+      console.log(`[SIGNIN_COMPLETE] Total login time: ${totalDuration}ms`);
+
+      navigate('/invoices'); // redirect after manual login
+    } catch (err: any) {
+      console.error('[SIGNIN_ERROR]', err);
+      setState((prev) => ({
+        ...prev,
+        loading: false,
+        error: err.message || 'Login failed',
+      }));
+      throw err;
     }
   };
 
+  // ✅ Safe Sign-Out
   const signOut = async () => {
-    setState((prev) => ({ ...prev, loading: true, error: null }));
+    console.log('[LOGOUT_START] Signing out user');
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-
+      await supabase.auth.signOut();
+      // ✅ Clear session cache
+      sessionCacheRef.current = null;
       setState({
         user: null,
         session: null,
@@ -314,9 +309,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading: false,
         error: null,
       });
-    } catch (error: any) {
-      setState((prev) => ({ ...prev, loading: false, error: error.message }));
-      throw error;
+      console.log('[LOGOUT_COMPLETE] State and cache cleared, redirecting to login');
+      navigate('/login');
+    } catch (err: any) {
+      console.error('[LOGOUT_ERROR]', err);
+      setState((prev) => ({ ...prev, error: err.message }));
     }
   };
 
@@ -335,7 +332,7 @@ export function useAuth() {
   return context;
 }
 
-// Auth guard component
+// ✅ Guarded routes
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
 
@@ -351,8 +348,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) {
-    // Redirect to login handled by router
-    return null;
+    return null; // router will redirect
   }
 
   return <>{children}</>;

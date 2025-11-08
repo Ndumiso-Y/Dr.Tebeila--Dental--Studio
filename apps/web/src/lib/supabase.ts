@@ -184,3 +184,26 @@ export interface InvoiceWithDetails extends Invoice {
 export const isSupabaseConfigured = () => {
   return !!supabaseUrl && !!supabaseAnonKey && supabaseUrl !== 'https://placeholder.supabase.co';
 };
+
+// ✅ Warm-up function to wake Supabase from cold start
+let isWarmedUp = false;
+
+export const warmupSupabase = async (): Promise<void> => {
+  if (isWarmedUp || !isSupabaseConfigured()) return;
+
+  console.log('[AUTH_WARMUP] Waking Supabase database...');
+  const start = Date.now();
+
+  try {
+    // Lightweight query to wake the database
+    await supabase.from('tenants').select('id').limit(1).single();
+    const duration = Date.now() - start;
+    console.log(`[AUTH_WARMUP] Database ready (${duration}ms)`);
+    isWarmedUp = true;
+  } catch (err) {
+    // Ignore errors - warmup is best-effort
+    const duration = Date.now() - start;
+    console.warn(`[AUTH_WARMUP] Warmup completed with minor issue (${duration}ms)`, err);
+    isWarmedUp = true;
+  }
+};
