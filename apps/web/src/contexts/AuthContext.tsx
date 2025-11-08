@@ -261,9 +261,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }));
   };
 
-  // ✅ Explicit Sign-In (no auto redirect)
+  // ✅ Explicit Sign-In (simplified, no race conditions)
   const signIn = async (email: string, password: string) => {
-    // ✅ Step 2: Throttle duplicate sign-in calls
+    // ✅ Throttle duplicate sign-in calls
     if (signingInRef.current) {
       console.warn('[AUTH_GUARD] Sign-in blocked – already in progress');
       return;
@@ -274,54 +274,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.info('[SIGNIN_START]', email);
     setState((prev) => ({ ...prev, loading: true, error: null }));
 
-    // Create a timeout promise (8 seconds for sign-in)
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Sign-in operation timeout')), 8000)
-    );
-
     try {
+      // Step 1: Authenticate with Supabase
       const authStart = Date.now();
-      console.info('[SIGNIN_AUTH] Calling Supabase auth...');
+      console.info('[SIGNIN_AUTH] Calling Supabase signInWithPassword...');
 
-      // Race auth call against timeout
-      const result: any = await Promise.race([
-        supabase.auth.signInWithPassword({ email, password }),
-        timeoutPromise
-      ]);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-      const { data, error } = result;
       if (error) {
         console.error('[SIGNIN_AUTH_ERROR]', error.message);
         throw error;
       }
 
       const user = data.user;
-      if (!user) throw new Error('Login failed - no user returned.');
+      if (!user) {
+        console.error('[SIGNIN_AUTH_ERROR] No user returned from Supabase');
+        throw new Error('Login failed - no user returned.');
+      }
 
       const authDuration = Date.now() - authStart;
       console.info(`[SIGNIN_SUCCESS] User authenticated in ${authDuration}ms:`, user.id);
 
+      // Step 2: Fetch user profile
       const profileStart = Date.now();
-      console.info('[SIGNIN_PROFILE_FETCH] Fetching user profile...');
+      console.info('[SIGNIN_PROFILE_FETCH] Fetching user profile from database...');
+
       const profile = await fetchProfile(user.id);
       const profileDuration = Date.now() - profileStart;
 
       if (!profile) {
-        console.error('[SIGNIN_PROFILE_ERROR] Profile not found in database');
-        throw new Error('User profile not found.');
+        console.error('[SIGNIN_PROFILE_ERROR] Profile not found in user_profiles table');
+        throw new Error('User profile not found. Please contact administrator.');
       }
+
+      console.info(`[SIGNIN_PROFILE_LOADED] Got profile in ${profileDuration}ms:`, {
+        name: profile.full_name,
+        tenant: profile.tenant_id,
+        role: profile.role,
+        active: profile.is_active
+      });
+
+      // Step 3: Validate profile
       if (!profile.is_active) {
         console.error('[SIGNIN_PROFILE_ERROR] Profile is inactive');
         throw new Error('Account inactive. Contact administrator.');
       }
       if (!profile.tenant_id) {
-        console.error('[SIGNIN_PROFILE_ERROR] No tenant linked');
+        console.error('[SIGNIN_PROFILE_ERROR] No tenant_id in profile');
         throw new Error('No tenant linked to this user.');
       }
 
-      console.info(`[SIGNIN_PROFILE_OK] Profile loaded in ${profileDuration}ms:`, profile.full_name);
+      console.info('[SIGNIN_PROFILE_OK] Profile validated successfully');
 
-      // ✅ Update session cache for faster subsequent loads
+      // Step 4: Update state and cache
       sessionCacheRef.current = { user, profile };
 
       setState({
@@ -336,18 +344,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       const totalDuration = Date.now() - signinStart;
-      console.info(`[SIGNIN_COMPLETE] Total login time: ${totalDuration}ms`);
+      console.info(`[SIGNIN_COMPLETE] Total login time: ${totalDuration}ms - Redirecting to /invoices/new`);
 
-      signingInRef.current = false; // Reset throttle
-      navigate('/invoices/new'); // redirect after manual login → new invoice
+      signingInRef.current = false;
+      navigate('/invoices/new');
+
     } catch (err: any) {
-      console.error('[SIGNIN_ERROR]', err.message || err);
-      signingInRef.current = false; // Reset throttle on error
+      const errorMsg = err.message || String(err);
+      console.error('[SIGNIN_ERROR]', errorMsg);
+
+      signingInRef.current = false;
       setState((prev) => ({
         ...prev,
         loading: false,
-        error: err.message || 'Login failed',
+        error: errorMsg,
       }));
+
       throw err;
     }
   };
