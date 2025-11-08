@@ -40,15 +40,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const manualSignInRef = useRef(false); // Flag to prevent auth listener race
 
   // ✅ Step 1: Clear stale cache on boot (runs once)
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (!data?.session) {
-        console.info('[AUTH_BOOT] Clearing old cache');
-        localStorage.removeItem('supabase.auth.token');
-        sessionStorage.clear();
-      }
-    });
-  }, []);
+  // DISABLED: getSession() is too slow on Supabase free tier
+  // useEffect(() => {
+  //   supabase.auth.getSession().then(({ data }) => {
+  //     if (!data?.session) {
+  //       console.info('[AUTH_BOOT] Clearing old cache');
+  //       localStorage.removeItem('supabase.auth.token');
+  //       sessionStorage.clear();
+  //     }
+  //   });
+  // }, []);
 
   // ✅ Helper to fetch profile safely
   const fetchProfile = async (userId: string): Promise<UserProfile | null> => {
@@ -102,89 +103,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        // ✅ Path C: Adaptive timeout (8s for initial cold start)
-        timeoutId = setTimeout(() => {
-          if (active) {
-            console.warn('[AUTH_TIMEOUT] Auth initialization exceeded 8s, forcing loading: false');
-            setState((prev) => ({
-              ...prev,
-              loading: false,
-              error: 'Authentication timeout. Please refresh and try again.',
-            }));
-          }
-        }, 8000);
+        // ✅ Path C: FAST BOOT - Skip slow getSession(), allow immediate login
+        console.info('[AUTH_BOOT] Fast boot - skipping slow session check');
+        console.info(`[AUTH_COMPLETE] Login ready in ${Date.now() - initStart}ms`);
+        setState((prev) => ({ ...prev, loading: false }));
+        return;
 
-        // ✅ Step 3: Back-off retry for session check
-        let session = null;
-        let user = null;
-
-        for (let attempt = 1; attempt <= 2; attempt++) {
-          try {
-            const { data, error } = await supabase.auth.getSession();
-            if (error) throw error;
-
-            session = data?.session ?? null;
-            user = session?.user ?? null;
-
-            if (session) break; // Success
-
-            // Wait before retry (1s, 2s back-off)
-            if (attempt < 2) {
-              await new Promise(r => setTimeout(r, attempt * 1000));
-            }
-          } catch (err) {
-            console.warn(`[SESSION_RETRY] Attempt ${attempt} failed`, err);
-            if (attempt === 2) throw err;
-          }
-        }
-
-        const sessionDuration = Date.now() - initStart;
-        console.info('[AUTH_SESSION_OK]', user ? `User found: ${user.email} (${sessionDuration}ms)` : 'No active session');
-
-        if (!active) return;
-
-        if (!user) {
-          // No active session → stay on login
-          clearTimeout(timeoutId);
-          console.log(`[AUTH_COMPLETE] No session, ready for login (${Date.now() - initStart}ms)`);
-          setState((prev) => ({ ...prev, loading: false }));
-          return;
-        }
-
-        // Found session → load profile
-        console.info('[PROFILE_FETCH] Loading profile for user:', user.id);
-        const profileStart = Date.now();
-        const profile = await fetchProfile(user.id);
-        const profileDuration = Date.now() - profileStart;
-
-        if (profile) {
-          console.info('[AUTH_PROFILE_OK]', profile.full_name, `(${profileDuration}ms)`, {
-            tenant: profile.tenant_id,
-            role: profile.role,
-            active: profile.is_active
-          });
-          // ✅ Cache for next load
-          sessionCacheRef.current = { user, profile };
-        } else {
-          console.error('[PROFILE_ERROR] Profile not found for user:', user.id);
-        }
-
-        clearTimeout(timeoutId);
-        setState({
-          user,
-          session,
-          profile,
-          tenantId: profile?.tenant_id ?? null,
-          role: profile?.role ?? null,
-          fullName: profile?.full_name ?? null,
-          loading: false,
-          error: profile
-            ? profile.is_active
-              ? null
-              : 'Your profile is inactive. Contact admin.'
-            : 'User profile not found.',
-        });
-        console.info('[AUTH_COMPLETE]');
+        // NOTE: Removed slow getSession() call that was timing out after 8+ seconds
+        // The auth state listener will automatically restore session if user has valid token
       } catch (err: any) {
         console.error('[AUTH_ERROR]', err.message || err);
         clearTimeout(timeoutId);
