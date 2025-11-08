@@ -13,9 +13,11 @@
     "@supabase/supabase-js": "^2.75.0",
     "dexie": "^4.2.1",
     "dexie-react-hooks": "^4.2.0",
+    "jspdf": "^3.0.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.4",
+    "react-select": "^5.10.2",
     "vite-plugin-pwa": "^1.0.3"
   },
   "devDependencies": {
