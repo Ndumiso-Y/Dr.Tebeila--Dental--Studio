@@ -24,6 +24,13 @@ export default function InvoiceNew() {
   const [loading, setLoading] = useState(false);
   const [patients, setPatients] = useState<Customer[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  // Form state
+  const [patientId, setPatientId] = useState('');
+  const [invoiceDate, setInvoiceDate] = useState(
+    new Date().toISOString().split('T')[0]
+  );
+  const [dueDate, setDueDate] = useState('');
+  const [notes, setNotes] = useState('');
   const [vatRates, setVATRates] = useState<VATRate[]>([]);
 
   if (authLoading) {
@@ -48,13 +55,6 @@ export default function InvoiceNew() {
     );
   }
 
-  // Form state
-  const [patientId, setPatientId] = useState('');
-  const [invoiceDate, setInvoiceDate] = useState(
-    new Date().toISOString().split('T')[0]
-  );
-  const [dueDate, setDueDate] = useState('');
-  const [notes, setNotes] = useState('');
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
 
   useEffect(() => {
