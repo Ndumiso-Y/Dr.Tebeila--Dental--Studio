@@ -1,0 +1,59 @@
+--- a/apps/web/src/contexts/AuthContext.tsx
++++ b/apps/web/src/contexts/AuthContext.tsx
+@@ -103,51 +103,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
+           return;
+         }
+
+-        // ✅ Path C: Adaptive timeout (8s for initial cold start)
+-        timeoutId = setTimeout(() => {
+-          if (active) {
+-            console.warn('[AUTH_TIMEOUT] Auth initialization exceeded 8s, forcing loading: false');
+-            setState((prev) => ({
+-              ...prev,
+-              loading: false,
+-              error: 'Authentication timeout. Please refresh and try again.',
+-            }));
+-          }
+-        }, 8000);
+-
+-        // ✅ Step 3: Back-off retry for session check
+-        let session = null;
+-        let user = null;
+-
+-        for (let attempt = 1; attempt <= 2; attempt++) {
+-          try {
+-            const { data, error } = await supabase.auth.getSession();
+-            if (error) throw error;
+-
+-            session = data?.session ?? null;
+-            user = session?.user ?? null;
+-
+-            if (session) break; // Success
+-
+-            // Wait before retry (1s, 2s back-off)
+-            if (attempt < 2) {
+-              await new Promise(r => setTimeout(r, attempt * 1000));
+-            }
+-          } catch (err) {
+-            console.warn(`[SESSION_RETRY] Attempt ${attempt} failed`, err);
+-            if (attempt === 2) throw err;
+-          }
+-        }
+-
+-        const sessionDuration = Date.now() - initStart;
+-        console.info('[AUTH_SESSION_OK]', user ? `User found: ${user.email} (${sessionDuration}ms)` : 'No active session');
+-
+-        if (!active) return;
+-
+-        if (!user) {
+-          // No active session → stay on login
+-          clearTimeout(timeoutId);
+-          console.log(`[AUTH_COMPLETE] No session, ready for login (${Date.now() - initStart}ms)`);
++        // ✅ Fast boot: Skip slow getSession() - login ready immediately
++        console.info('[AUTH_BOOT] Fast boot - ready for login');
+           setState((prev) => ({ ...prev, loading: false }));
++          console.info(`[AUTH_COMPLETE] Login ready (${Date.now() - initStart}ms)`);
+           return;
+-        }
++
++        // NOTE: Auth state listener will restore session if user has valid token

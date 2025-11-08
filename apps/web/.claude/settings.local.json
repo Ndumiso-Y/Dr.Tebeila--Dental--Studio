@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nperf: Optimize authentication flow to reduce login latency from 8s to <3s\n\nGate S2.2 - Auth Performance Optimization\n\n- Add Supabase warmup ping to wake free-tier DB before auth calls\n- Implement session cache short-circuit for instant page refresh (<100ms)\n- Extend adaptive timeout from 5s to 8s for cold-start grace period\n- Add comprehensive timing instrumentation across auth lifecycle\n- Fix infinite spinner by removing duplicate loading check in AppRoutes\n\nPerformance improvements:\n• First login (cold start): 5-8s → 2-4s (~50% faster)\n• Page refresh: 1-2s → <100ms (~95% faster)\n• Subsequent logins: 2-3s → 1-2s (~40% faster)\n\nStructured logs added:\n- [AUTH_WARMUP] Database wake timing\n- [SESSION_CACHE_HIT] Cache restoration\n- [SIGNIN_COMPLETE] Total login duration\n- [AUTH_COMPLETE] Full session resolution timing\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push:*)",
+      "Bash(npm install:*)",
+      "Bash(git commit:*)",
+      "Bash(git checkout:*)",
+      "Bash(git merge feature/gate-s3-ui-invoice-automation --no-ff -m \"$(cat <<''EOF''\nMerge Gate S3: UI/UX Enhancement + Invoice Automation\n\nComprehensive upgrade to user experience and invoice workflow:\n\n✅ High-Contrast UI Styling\n✅ Creatable Patient Select (inline patient creation)\n✅ Automatic Invoice Numbering (INV-YYYYMMDD-###)\n✅ PDF Export with Brand Styling\n✅ Reordered Navigation (New Invoice first)\n✅ Default Route → /invoices/new\n\nAll acceptance criteria met. No RLS regressions.\n\nGate S3 Complete - Ready for S4 (Reporting & Automation)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git merge:*)",
+      "Read(//f/Digital Agency/Refodile Health Centre/Dentist/Dr.Tebeila Dental Studio/**)",
+      "Bash(npm run build:*)",
+      "Bash(npx tsc:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

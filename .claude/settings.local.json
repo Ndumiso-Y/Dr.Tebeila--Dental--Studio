@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: React frontend with Supabase Auth & Invoice Management\n\nComplete production-quality frontend for Dr.Tebeila Dental Studio:\n\nCore Infrastructure:\n- React 18 + Vite + TypeScript\n- Tailwind CSS with brand colors (#05984B, #0E8ECC)\n- React Router v6 for client-side routing\n- PWA configuration with vite-plugin-pwa\n\nAuthentication & Multi-tenancy:\n- AuthContext with Supabase Auth integration\n- Email/password login flow\n- Auto-fetch user profile with tenant_id from RLS\n- Protected routes with AuthGuard\n- Sign out functionality\n\nDatabase Integration:\n- Supabase client with TypeScript types\n- Dexie (IndexedDB) for offline draft invoices\n- Auto-calculation of invoice totals & VAT\n- Offline support with sync capability\n\nPages Implemented:\n- Login page with branded design\n- Invoices List (read from Supabase with RLS)\n- New Invoice form with:\n  - Customer selection\n  - Multiple line items\n  - Service catalog integration\n  - Auto-calculate subtotal, VAT, total\n  - Draft save to Supabase\n- Invoice Detail (placeholder)\n- Customers List (placeholder)\n- Settings (user profile display)\n\nComponents:\n- Layout with navigation\n- NavBar with responsive mobile menu\n- OfflineBanner for connectivity status\n- Reusable UI patterns via Tailwind\n\nFeatures:\n✅ Multi-tenant isolation via Supabase RLS\n✅ Offline indicator\n✅ Mobile-responsive design\n✅ PWA installable (service worker + manifest)\n✅ Brand color theming\n✅ TypeScript for type safety\n✅ Production-ready structure\n\nTech Stack:\n- @supabase/supabase-js for backend\n- react-router-dom for routing\n- dexie for IndexedDB\n- vite-plugin-pwa for PWA support\n\nSetup:\n1. Copy apps/web/.env.example to .env.local\n2. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY\n3. npm install && npm run dev\n4. Login with ndumisoyedwa@gmail.com\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
