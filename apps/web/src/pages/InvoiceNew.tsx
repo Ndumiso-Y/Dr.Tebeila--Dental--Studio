@@ -31,7 +31,9 @@ export default function InvoiceNew() {
   );
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
+
   const [vatRates, setVATRates] = useState<VATRate[]>([]);
+  const [lineItems, setLineItems] = useState<LineItem[]>([]);
 
   if (authLoading) {
     return (
@@ -54,8 +56,6 @@ export default function InvoiceNew() {
       </Layout>
     );
   }
-
-  const [lineItems, setLineItems] = useState<LineItem[]>([]);
 
   useEffect(() => {
     fetchData();
