@@ -37,7 +37,7 @@ export default function NavBar() {
               <Link to="/invoices" className="flex items-center space-x-2">
                 <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center overflow-hidden">
                   <img
-                    src="/logo.png"
+                    src={`${import.meta.env.BASE_URL}logo.png`}
                     alt="Dr.Tebeila Dental Studio"
                     className="w-full h-full object-contain p-1"
                   />

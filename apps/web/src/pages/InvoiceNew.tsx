@@ -272,7 +272,7 @@ export default function InvoiceNew() {
               {/* Logo */}
               <div className="w-20 h-20 rounded-lg bg-white flex items-center justify-center shadow-lg overflow-hidden">
                 <img
-                  src="/logo.png"
+                  src={`${import.meta.env.BASE_URL}logo.png`}
                   alt="Dr.Tebeila Dental Studio"
                   className="w-full h-full object-contain p-2"
                 />

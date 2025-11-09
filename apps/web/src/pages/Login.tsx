@@ -55,7 +55,7 @@ export default function Login() {
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-24 h-24 rounded-2xl bg-white shadow-xl mb-4 overflow-hidden">
             <img
-              src="/logo.png"
+              src={`${import.meta.env.BASE_URL}logo.png`}
               alt="Dr.Tebeila Dental Studio"
               className="w-full h-full object-contain p-3"
             />
