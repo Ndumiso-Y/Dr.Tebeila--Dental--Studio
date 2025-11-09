@@ -67,6 +67,10 @@ export default function InvoiceDetail() {
     }
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   if (authLoading || loading) {
     return (
       <Layout>
@@ -108,12 +112,28 @@ export default function InvoiceDetail() {
             </p>
           </div>
 
-          <div className="space-x-2">
+          <div className="flex gap-3">
             <button
               onClick={() => navigate('/invoices')}
               className="btn btn-outline"
             >
               Back
+            </button>
+            <button onClick={handlePrint} className="btn btn-primary">
+              <svg
+                className="w-5 h-5 mr-2"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+                />
+              </svg>
+              Print
             </button>
             <button onClick={handleDownloadPDF} className="btn btn-secondary">
               <svg
