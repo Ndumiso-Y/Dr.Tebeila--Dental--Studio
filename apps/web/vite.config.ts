@@ -3,8 +3,8 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
-export default defineConfig({
-  base: '/Dr.Tebeila--Dental--Studio/',
+export default defineConfig(({ command }) => ({
+  base: command === 'build' ? '/Dr.Tebeila--Dental--Studio/' : '/',
   plugins: [
     react(),
     VitePWA({
@@ -60,4 +60,4 @@ export default defineConfig({
       },
     }),
   ],
-})
+}))
