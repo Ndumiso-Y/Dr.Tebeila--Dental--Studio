@@ -107,21 +107,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Best effort - continue even if warmup fails
         });
 
-        // ✅ Path B: Session cache short-circuit
-        if (sessionCacheRef.current) {
-          const { user, profile } = sessionCacheRef.current;
-          console.info(`[SESSION_CACHE_HIT] Restored session in ${Date.now() - initStart}ms`);
-          setState({
-            user,
-            session: null, // Will be refreshed by listener
-            profile,
-            tenantId: profile.tenant_id,
-            role: profile.role,
-            fullName: profile.full_name,
-            loading: false,
-            error: null,
-          });
-          return;
+        // ✅ Path B: Check localStorage cache first (survives refresh)
+        try {
+          const cachedProfileStr = localStorage.getItem('user_profile_cache');
+          if (cachedProfileStr) {
+            const cachedProfile = JSON.parse(cachedProfileStr);
+            console.info(`[CACHE_HIT] Restored from localStorage in ${Date.now() - initStart}ms`);
+            sessionCacheRef.current = { user: null as any, profile: cachedProfile };
+            setState({
+              user: null, // Will be set by listener
+              session: null,
+              profile: cachedProfile,
+              tenantId: cachedProfile.tenant_id,
+              role: cachedProfile.role,
+              fullName: cachedProfile.full_name,
+              loading: false,
+              error: null,
+            });
+            return;
+          }
+        } catch (err) {
+          console.warn('[CACHE] Failed to restore from localStorage:', err);
         }
 
         // ✅ Path C: FAST BOOT - Skip slow getSession(), allow immediate login
@@ -212,9 +218,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             : 'User profile not found.',
         });
 
-        // Update cache for next time
+        // Update cache for next time (both memory and localStorage)
         if (profile) {
           sessionCacheRef.current = { user: session.user, profile };
+          try {
+            localStorage.setItem('user_profile_cache', JSON.stringify(profile));
+          } catch (err) {
+            console.warn('[CACHE] Failed to save to localStorage:', err);
+          }
         }
       }
     });
@@ -321,8 +332,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       console.info('[SIGNIN_PROFILE_OK] Profile validated successfully');
 
-      // Step 4: Update state and cache
+      // Step 4: Update state and cache (memory + localStorage)
       sessionCacheRef.current = { user, profile };
+      try {
+        localStorage.setItem('user_profile_cache', JSON.stringify(profile));
+        console.info('[CACHE] Profile saved to localStorage');
+      } catch (err) {
+        console.warn('[CACHE] Failed to save to localStorage:', err);
+      }
 
       setState({
         user,
