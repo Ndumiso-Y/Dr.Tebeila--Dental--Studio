@@ -1,6 +1,6 @@
 import { useAuth } from '../contexts/AuthContext';
 import { useState, useEffect, FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase, Customer, Service, VATRate } from '../lib/supabase';
 import { safeQuery } from '../lib/safeQuery';
 import Layout from '../components/Layout';
@@ -40,6 +40,10 @@ export default function InvoiceNew() {
 
   // Patient modal state
   const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
+
+  // Quotation mode (Gate S6.2)
+  const [searchParams] = useSearchParams();
+  const isQuotationMode = searchParams.get('mode') === 'quotation';
 
 
   const [vatRates, setVATRates] = useState<VATRate[]>([]);
@@ -244,7 +248,7 @@ export default function InvoiceNew() {
           customer_id: patientId,
           invoice_date: invoiceDate,
           due_date: dueDate || null,
-          status: 'Draft',
+          status: isQuotationMode ? 'Quotation' : 'Draft',
           subtotal,
           total_vat: totalVAT,
           total_amount: total,
@@ -333,7 +337,7 @@ export default function InvoiceNew() {
                 Cancel
               </button>
               <button type="submit" disabled={loading} className="btn btn-primary">
-                {loading ? 'Saving...' : 'Save Draft'}
+                {loading ? 'Saving...' : (isQuotationMode ? 'Save Quotation' : 'Save Draft')}
               </button>
             </div>
           </div>

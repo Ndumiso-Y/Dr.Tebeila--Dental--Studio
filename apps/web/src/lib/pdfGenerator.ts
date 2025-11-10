@@ -12,6 +12,7 @@ export function generateInvoicePDF(invoice: InvoiceWithDetails): void {
 
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 20;
   let yPos = 20;
 
@@ -35,6 +36,18 @@ export function generateInvoicePDF(invoice: InvoiceWithDetails): void {
   doc.text('Quality Dental Care for the Whole Family', margin, 32);
 
   yPos = 55;
+  // Quotation Watermark (Gate S6.2)
+  if (invoice.status === 'Quotation') {
+    doc.setFontSize(60);
+    doc.setTextColor(200, 200, 200); // Light gray
+    doc.setFont('helvetica', 'bold');
+    doc.text('QUOTATION', pageWidth / 2, pageHeight / 2, {
+      align: 'center',
+      angle: 45,
+    });
+    doc.setTextColor(...textColor); // Reset color
+  }
+
 
   // Reset text color for body
   doc.setTextColor(...textColor);
@@ -42,7 +55,11 @@ export function generateInvoicePDF(invoice: InvoiceWithDetails): void {
   // Invoice Number & Status
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
-  doc.text(`Invoice: ${invoice.invoice_number || 'DRAFT'}`, margin, yPos);
+  doc.text(
+    `${invoice.status === 'Quotation' ? 'Quotation' : 'Invoice'}: ${invoice.invoice_number || 'DRAFT'}`,
+    margin,
+    yPos
+  );
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);

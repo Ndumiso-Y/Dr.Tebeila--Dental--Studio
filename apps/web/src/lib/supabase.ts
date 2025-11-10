@@ -41,7 +41,7 @@ export const supabase = createClient(url, key, {
 
 // Database types (based on your schema)
 export type UserRole = 'owner' | 'admin' | 'staff';
-export type InvoiceStatus = 'Draft' | 'ProformaOffline' | 'Finalized' | 'Paid' | 'Void';
+export type InvoiceStatus = 'Draft' | 'Quotation' | 'ProformaOffline' | 'Finalized' | 'Paid' | 'Void';
 
 export interface UserProfile {
   id: string;
