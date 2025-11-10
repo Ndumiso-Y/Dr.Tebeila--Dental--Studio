@@ -16,7 +16,8 @@
       "Bash(curl:*)",
       "Bash(npm install:*)",
       "Bash(cat:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(npm run deploy:*)"
     ],
     "deny": [],
     "ask": []
