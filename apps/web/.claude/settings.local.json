@@ -17,7 +17,11 @@
       "Bash(npm install:*)",
       "Bash(cat:*)",
       "Bash(python:*)",
-      "Bash(npm run deploy:*)"
+      "Bash(npm run deploy:*)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)",
+      "Bash(git stash:*)",
+      "Bash(npx vite build:*)"
     ],
     "deny": [],
     "ask": []
