@@ -5,6 +5,7 @@ import { supabase, Customer, Service, VATRate } from '../lib/supabase';
 import { safeQuery } from '../lib/safeQuery';
 import Layout from '../components/Layout';
 import { calculateLineTotals } from '../lib/db';
+import PatientModal from '../components/PatientModal';
 import CreatablePatientSelect from '../components/CreatablePatientSelect';
 import { generateInvoiceNumber } from '../lib/invoiceUtils';
 
@@ -31,6 +32,15 @@ export default function InvoiceNew() {
   );
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
+
+  // Payment tracking state (Gate S5)
+  const [amountPaid, setAmountPaid] = useState<number>(0);
+  const [paymentMethod, setPaymentMethod] = useState<string>('Cash');
+  const [changeDue, setChangeDue] = useState<number>(0);
+
+  // Patient modal state
+  const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
+
 
   const [vatRates, setVATRates] = useState<VATRate[]>([]);
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
@@ -84,6 +94,17 @@ export default function InvoiceNew() {
   useEffect(() => {
     fetchData();
   }, [tenantId]);
+
+  // Auto-calculate change due for Cash payments (Gate S5)
+  useEffect(() => {
+    const totals = calculateTotals();
+    if (paymentMethod === 'Cash' && amountPaid > 0) {
+      setChangeDue(Math.max(amountPaid - totals.total, 0));
+    } else {
+      setChangeDue(0);
+    }
+  }, [amountPaid, paymentMethod, lineItems]);
+
 
   if (authLoading) {
     return (
@@ -177,8 +198,21 @@ export default function InvoiceNew() {
     };
   };
 
-  const handlePatientCreated = (newPatient: Customer) => {
-    setPatients([...patients, newPatient]);
+  const handlePatientCreated = async (patientId: string) => {
+    // Refresh patient list after creation
+    const { data } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('tenant_id', tenantId!)
+      .eq('is_active', true)
+      .order('name');
+
+    if (data) {
+      setPatients(data);
+      setPatientId(patientId);
+    }
+
+    setIsPatientModalOpen(false);
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -216,6 +250,10 @@ export default function InvoiceNew() {
           total_amount: total,
           paid_amount: 0,
           notes,
+        // Payment tracking fields (Gate S5)
+        amount_paid: amountPaid,
+        payment_method: paymentMethod,
+        change_due: changeDue,
         })
         .select()
         .single();
@@ -310,12 +348,31 @@ export default function InvoiceNew() {
               <label htmlFor="patient" className="label">
                 Patient *
               </label>
-              <CreatablePatientSelect
-                value={patientId}
-                onChange={setPatientId}
-                patients={patients}
-                onPatientCreated={handlePatientCreated}
-              />
+              <div className="flex gap-2">
+                <select
+                  id="patient"
+                  value={patientId}
+                  onChange={(e) => setPatientId(e.target.value)}
+                  className="input flex-1"
+                  required
+                >
+                  <option value="">Select a patient...</option>
+                  {patients.map((patient) => (
+                    <option key={patient.id} value={patient.id}>
+                      {patient.name}
+                      {patient.cell ? ` - ${patient.cell}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setIsPatientModalOpen(true)}
+                  className="btn btn-primary whitespace-nowrap"
+                  title="Add New Patient"
+                >
+                  + New Patient
+                </button>
+              </div>
             </div>
 
             <div>
@@ -572,7 +629,91 @@ export default function InvoiceNew() {
             </div>
           </div>
         )}
+
+        {/* Payment Details Section (Gate S5) */}
+        {lineItems.length > 0 && (
+          <div className="card">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">💳 Payment Details</h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Amount Paid */}
+              <div>
+                <label htmlFor="amount_paid" className="label">
+                  Amount Paid (R)
+                </label>
+                <input
+                  type="number"
+                  id="amount_paid"
+                  value={amountPaid || ''}
+                  onChange={(e) => setAmountPaid(parseFloat(e.target.value) || 0)}
+                  className="input"
+                  placeholder="0.00"
+                  step="0.01"
+                  min="0"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Enter the amount tendered by the patient
+                </p>
+              </div>
+
+              {/* Payment Method */}
+              <div>
+                <label htmlFor="payment_method" className="label">
+                  Payment Method
+                </label>
+                <select
+                  id="payment_method"
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="input"
+                >
+                  <option value="Cash">💵 Cash</option>
+                  <option value="Card">💳 Card</option>
+                  <option value="EFT">🏦 EFT</option>
+                  <option value="Medical Aid">🏥 Medical Aid</option>
+                  <option value="Split">📊 Split Payment</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Change Due (Auto-calculated for Cash) */}
+            {paymentMethod === 'Cash' && amountPaid > 0 && (
+              <div className="mt-4 p-4 bg-green-50 border-2 border-green-300 rounded-lg">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-700">Change to Return:</span>
+                  <span className="text-3xl font-bold text-primary font-mono">
+                    R {changeDue.toFixed(2)}
+                  </span>
+                </div>
+                {changeDue > 0 && (
+                  <p className="text-xs text-gray-600 mt-2">
+                    Patient paid R {amountPaid.toFixed(2)} for total of R {totals.total.toFixed(2)}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Payment Summary for non-Cash */}
+            {paymentMethod !== 'Cash' && amountPaid > 0 && (
+              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-700">Amount Received ({paymentMethod}):</span>
+                  <span className="text-lg font-bold text-gray-900 font-mono">
+                    R {amountPaid.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </form>
+
+      {/* Patient Modal */}
+      <PatientModal
+        isOpen={isPatientModalOpen}
+        onClose={() => setIsPatientModalOpen(false)}
+        onPatientCreated={handlePatientCreated}
+      />
     </Layout>
   );
 }

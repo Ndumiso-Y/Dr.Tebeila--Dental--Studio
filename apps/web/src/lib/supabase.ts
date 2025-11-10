@@ -126,6 +126,12 @@ export interface Customer {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  // Gate S5.1 - Additional patient fields
+  first_name?: string | null;
+  last_name?: string | null;
+  cell?: string | null;
+  id_number?: string | null;
+  home_address?: string | null;
 }
 
 export interface Invoice {
@@ -150,6 +156,10 @@ export interface Invoice {
   updated_by: string | null;
   finalized_at: string | null;
   finalized_by: string | null;
+  // Gate S5 - Payment tracking fields
+  amount_paid?: number | null;
+  payment_method?: string | null;
+  change_due?: number | null;
 }
 
 export interface InvoiceItem {

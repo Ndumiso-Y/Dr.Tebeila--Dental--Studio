@@ -20,20 +20,21 @@ export function generateInvoicePDF(invoice: InvoiceWithDetails): void {
   const secondaryColor: [number, number, number] = [14, 142, 204]; // #0E8ECC
   const textColor: [number, number, number] = [31, 41, 55]; // gray-800
 
-  // Header: Practice Name
+  // Header: Practice Name with Professional Layout
   doc.setFillColor(...primaryColor);
-  doc.rect(0, 0, pageWidth, 35, 'F');
+  doc.rect(0, 0, pageWidth, 40, 'F');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(22);
+  doc.setFontSize(24);
   doc.setTextColor(255, 255, 255);
-  doc.text('Dr. Tebeila Dental Studio', margin, 20);
+  doc.text('Dr. Tebeila Dental Studio', margin, 18);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  doc.text('Invoicing & Practice Management', margin, 28);
+  doc.setFontSize(9);
+  doc.text('Refodile Health Centre • Polokwane', margin, 26);
+  doc.text('Quality Dental Care for the Whole Family', margin, 32);
 
-  yPos = 50;
+  yPos = 55;
 
   // Reset text color for body
   doc.setTextColor(...textColor);
@@ -63,6 +64,11 @@ export function generateInvoicePDF(invoice: InvoiceWithDetails): void {
   doc.setFontSize(10);
   doc.text(`Name: ${invoice.customer.name}`, margin, yPos);
 
+  if (invoice.customer.cell) {
+    yPos += 5;
+    doc.text(`Cell: ${invoice.customer.cell}`, margin, yPos);
+  }
+
   if (invoice.customer.email) {
     yPos += 5;
     doc.text(`Email: ${invoice.customer.email}`, margin, yPos);
@@ -71,6 +77,18 @@ export function generateInvoicePDF(invoice: InvoiceWithDetails): void {
   if (invoice.customer.phone) {
     yPos += 5;
     doc.text(`Phone: ${invoice.customer.phone}`, margin, yPos);
+  }
+
+  if (invoice.customer.id_number) {
+    yPos += 5;
+    doc.text(`ID Number: ${invoice.customer.id_number}`, margin, yPos);
+  }
+
+  if (invoice.customer.home_address) {
+    yPos += 5;
+    const addressLines = doc.splitTextToSize(`Address: ${invoice.customer.home_address}`, pageWidth - 2 * margin);
+    doc.text(addressLines, margin, yPos);
+    yPos += (addressLines.length - 1) * 5;
   }
 
   yPos += 10;
@@ -179,6 +197,52 @@ export function generateInvoicePDF(invoice: InvoiceWithDetails): void {
 
   doc.setTextColor(...textColor);
 
+  // Payment Information (Gate S5)
+  if (invoice.amount_paid !== null && invoice.amount_paid > 0) {
+    yPos += 15;
+
+    if (yPos > 240) {
+      doc.addPage();
+      yPos = 20;
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('Payment Information', margin, yPos);
+
+    yPos += 8;
+
+    // Payment details box
+    doc.setFillColor(240, 253, 244); // green-50
+    doc.rect(margin, yPos - 5, pageWidth - 2 * margin, 20, 'F');
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text('Amount Paid:', margin + 5, yPos);
+    doc.setFont('helvetica', 'bold');
+    doc.text(formatCurrency(invoice.amount_paid), margin + 40, yPos);
+
+    yPos += 6;
+
+    doc.setFont('helvetica', 'normal');
+    doc.text('Payment Method:', margin + 5, yPos);
+    doc.setFont('helvetica', 'bold');
+    doc.text(invoice.payment_method || 'N/A', margin + 40, yPos);
+
+    // Change due for Cash payments
+    if (invoice.payment_method === 'Cash' && invoice.change_due !== null && invoice.change_due > 0) {
+      yPos += 6;
+      doc.setFont('helvetica', 'normal');
+      doc.text('Change Returned:', margin + 5, yPos);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...primaryColor);
+      doc.text(formatCurrency(invoice.change_due), margin + 40, yPos);
+      doc.setTextColor(...textColor);
+    }
+
+    yPos += 10;
+  }
+
   // Notes (if any)
   if (invoice.notes) {
     yPos += 15;
@@ -203,17 +267,22 @@ export function generateInvoicePDF(invoice: InvoiceWithDetails): void {
   }
 
   // Footer
-  const footerY = doc.internal.pageSize.getHeight() - 20;
+  const footerY = doc.internal.pageSize.getHeight() - 25;
+
+  doc.setFontSize(9);
+  doc.setTextColor(107, 114, 128); // gray-500
+  doc.text('Thank you for your visit — Smile with Confidence 😊', pageWidth / 2, footerY, { align: 'center' });
 
   doc.setFontSize(8);
-  doc.setTextColor(107, 114, 128); // gray-500
-  doc.text('Thank you for your business!', pageWidth / 2, footerY, { align: 'center' });
+  doc.setTextColor(...primaryColor);
+  doc.text('Refodile Health Centre • Polokwane', pageWidth / 2, footerY + 5, { align: 'center' });
 
   doc.setFontSize(7);
+  doc.setTextColor(107, 114, 128);
   doc.text(
     '© 2025 Dr. Tebeila Dental Studio. All rights reserved.',
     pageWidth / 2,
-    footerY + 4,
+    footerY + 10,
     { align: 'center' }
   );
 

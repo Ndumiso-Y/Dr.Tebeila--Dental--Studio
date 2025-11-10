@@ -13,6 +13,8 @@ interface PatientFormData {
   last_name: string;
   cell: string;
   email: string;
+  id_number: string;
+  home_address: string;
   notes: string;
 }
 
@@ -23,6 +25,8 @@ export default function PatientModal({ isOpen, onClose, onPatientCreated }: Pati
     last_name: '',
     cell: '',
     email: '',
+    id_number: '',
+    home_address: '',
     notes: '',
   });
   const [errors, setErrors] = useState<Partial<PatientFormData>>({});
@@ -82,6 +86,8 @@ export default function PatientModal({ isOpen, onClose, onPatientCreated }: Pati
           last_name: formData.last_name.trim(),
           cell: formData.cell.replace(/\s/g, ''), // Remove spaces
           email: formData.email.trim() || null,
+          id_number: formData.id_number.trim() || null,
+          home_address: formData.home_address.trim() || null,
           notes: formData.notes.trim() || null,
         })
         .select('id')
@@ -100,6 +106,8 @@ export default function PatientModal({ isOpen, onClose, onPatientCreated }: Pati
         last_name: '',
         cell: '',
         email: '',
+        id_number: '',
+        home_address: '',
         notes: '',
       });
       setErrors({});
@@ -119,6 +127,8 @@ export default function PatientModal({ isOpen, onClose, onPatientCreated }: Pati
         last_name: '',
         cell: '',
         email: '',
+        id_number: '',
+        home_address: '',
         notes: '',
       });
       setErrors({});
@@ -209,6 +219,40 @@ export default function PatientModal({ isOpen, onClose, onPatientCreated }: Pati
             {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
           </div>
 
+
+          {/* ID Number */}
+          <div>
+            <label htmlFor="id_number" className="block text-sm font-medium text-gray-700 mb-1">
+              ID Number <span className="text-gray-400 text-xs">(optional)</span>
+            </label>
+            <input
+              type="text"
+              id="id_number"
+              value={formData.id_number}
+              onChange={(e) => setFormData({ ...formData, id_number: e.target.value })}
+              className="input"
+              placeholder="8501015800080"
+              maxLength={13}
+              disabled={saving}
+            />
+            <p className="text-xs text-gray-500 mt-1">South African ID number (13 digits)</p>
+          </div>
+
+          {/* Home Address */}
+          <div>
+            <label htmlFor="home_address" className="block text-sm font-medium text-gray-700 mb-1">
+              Home Address <span className="text-gray-400 text-xs">(optional)</span>
+            </label>
+            <textarea
+              id="home_address"
+              value={formData.home_address}
+              onChange={(e) => setFormData({ ...formData, home_address: e.target.value })}
+              className="input resize-none"
+              rows={2}
+              placeholder="123 Main Street, Suburb, City, Postal Code"
+              disabled={saving}
+            />
+          </div>
           {/* Notes */}
           <div>
             <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">

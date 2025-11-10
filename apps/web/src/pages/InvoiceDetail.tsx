@@ -158,11 +158,17 @@ export default function InvoiceDetail() {
       {/* Patient Information */}
       <div className="card mb-6">
         <h2 className="text-lg font-semibold mb-4">Patient Information</h2>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
-            <p className="text-sm text-gray-600">Name</p>
+            <p className="text-sm text-gray-600">Full Name</p>
             <p className="font-medium">{invoice.customer.name}</p>
           </div>
+          {invoice.customer.cell && (
+            <div>
+              <p className="text-sm text-gray-600">Cell Phone</p>
+              <p className="font-medium">{invoice.customer.cell}</p>
+            </div>
+          )}
           {invoice.customer.email && (
             <div>
               <p className="text-sm text-gray-600">Email</p>
@@ -173,6 +179,18 @@ export default function InvoiceDetail() {
             <div>
               <p className="text-sm text-gray-600">Phone</p>
               <p className="font-medium">{invoice.customer.phone}</p>
+            </div>
+          )}
+          {invoice.customer.id_number && (
+            <div>
+              <p className="text-sm text-gray-600">ID Number</p>
+              <p className="font-medium font-mono">{invoice.customer.id_number}</p>
+            </div>
+          )}
+          {invoice.customer.home_address && (
+            <div className="md:col-span-2 lg:col-span-3">
+              <p className="text-sm text-gray-600">Home Address</p>
+              <p className="font-medium">{invoice.customer.home_address}</p>
             </div>
           )}
         </div>
@@ -279,6 +297,54 @@ export default function InvoiceDetail() {
             </div>
           </div>
         </div>
+
+      {/* Payment Information (Gate S5) */}
+      {invoice.amount_paid !== null && invoice.amount_paid > 0 && (
+        <div className="card mt-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">💳 Payment Information</h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-gray-600">Amount Paid</p>
+              <p className="text-2xl font-bold text-gray-900 font-mono">
+                {formatCurrency(invoice.amount_paid)}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-sm text-gray-600">Payment Method</p>
+              <p className="text-lg font-bold text-gray-900">{invoice.payment_method || 'N/A'}</p>
+            </div>
+          </div>
+
+          {/* Change Due Display (for Cash payments) */}
+          {invoice.payment_method === 'Cash' && invoice.change_due !== null && invoice.change_due > 0 && (
+            <div className="mt-4 p-4 bg-green-50 border-2 border-green-300 rounded-lg">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-gray-700">Change Returned:</span>
+                <span className="text-3xl font-bold text-primary font-mono">
+                  {formatCurrency(invoice.change_due)}
+                </span>
+              </div>
+              <p className="text-xs text-gray-600 mt-2">
+                Patient paid {formatCurrency(invoice.amount_paid)} for total of {formatCurrency(invoice.total_amount)}
+              </p>
+            </div>
+          )}
+
+          {/* Payment Summary for non-Cash */}
+          {invoice.payment_method !== 'Cash' && invoice.amount_paid > 0 && (
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-700">Amount Received ({invoice.payment_method}):</span>
+                <span className="text-xl font-bold text-gray-900 font-mono">
+                  {formatCurrency(invoice.amount_paid)}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       </div>
     </Layout>
   );
