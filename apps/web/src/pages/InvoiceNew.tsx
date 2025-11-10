@@ -240,6 +240,15 @@ export default function InvoiceNew() {
       // Generate unique invoice number
       const invoiceNumber = await generateInvoiceNumber(tenantId!);
 
+      // Auto-status logic (Gate S8): Determine status based on payment
+      let invoiceStatus = isQuotationMode ? 'Quotation' : 'Draft';
+      let paymentDate = null;
+
+      if (amountPaid >= total && amountPaid > 0) {
+        invoiceStatus = 'Paid';
+        paymentDate = new Date().toISOString();
+      }
+
       // Create invoice
       const { data: invoice, error: invoiceError } = await supabase
         .from('invoices')
@@ -248,7 +257,7 @@ export default function InvoiceNew() {
           customer_id: patientId,
           invoice_date: invoiceDate,
           due_date: dueDate || null,
-          status: isQuotationMode ? 'Quotation' : 'Draft',
+          status: invoiceStatus,
           subtotal,
           total_vat: totalVAT,
           total_amount: total,
@@ -258,6 +267,7 @@ export default function InvoiceNew() {
         amount_paid: amountPaid,
         payment_method: paymentMethod,
         change_due: changeDue,
+        payment_date: paymentDate,
         })
         .select()
         .single();

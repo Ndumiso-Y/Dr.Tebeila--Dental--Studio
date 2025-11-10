@@ -298,6 +298,64 @@ export default function InvoiceDetail() {
           </div>
         </div>
 
+      {/* Payment Summary Card (Gate S8) */}
+      <div className="card mt-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">💰 Payment Summary</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-600 mb-1">Total Amount</p>
+            <p className="text-2xl font-bold text-gray-900 font-mono">
+              {formatCurrency(invoice.total_amount)}
+            </p>
+          </div>
+
+          <div className="bg-green-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-600 mb-1">Amount Paid</p>
+            <p className="text-2xl font-bold text-green-700 font-mono">
+              {formatCurrency(invoice.amount_paid || 0)}
+            </p>
+          </div>
+
+          <div className={`p-4 rounded-lg ${
+            (invoice.total_amount - (invoice.amount_paid || 0)) === 0
+              ? 'bg-green-50'
+              : 'bg-orange-50'
+          }`}>
+            <p className="text-sm text-gray-600 mb-1">Outstanding</p>
+            <p className={`text-2xl font-bold font-mono ${
+              (invoice.total_amount - (invoice.amount_paid || 0)) === 0
+                ? 'text-green-700'
+                : 'text-orange-700'
+            }`}>
+              {formatCurrency(invoice.total_amount - (invoice.amount_paid || 0))}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <p className="text-sm text-gray-600">Payment Method</p>
+            <p className="text-lg font-semibold text-gray-900">
+              {invoice.payment_method || 'N/A'}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-sm text-gray-600">Status</p>
+            <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
+              invoice.status === 'Paid' ? 'bg-green-100 text-green-800' :
+              invoice.status === 'Finalized' ? 'bg-yellow-100 text-yellow-800' :
+              invoice.status === 'Quotation' ? 'bg-blue-100 text-blue-800' :
+              invoice.status === 'Draft' ? 'bg-gray-100 text-gray-800' :
+              invoice.status === 'Void' ? 'bg-red-100 text-red-800' :
+              'bg-orange-100 text-orange-800'
+            }`}>
+              {invoice.status}
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Payment Information (Gate S5) */}
       {invoice.amount_paid !== null && invoice.amount_paid > 0 && (
         <div className="card mt-6">
@@ -345,6 +403,34 @@ export default function InvoiceDetail() {
           )}
         </div>
       )}
+
+      {/* Post-Payment Actions (Gate S8) */}
+      <div className="card mt-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Actions</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <button onClick={() => window.print()} className="btn-secondary">
+            Print
+          </button>
+          <button onClick={() => generateInvoicePDF(invoice)} className="btn-secondary">
+            Download PDF
+          </button>
+          <button
+            onClick={() => {
+              const text = `Invoice ${invoice.invoice_number} - ${formatCurrency(invoice.total_amount)}. View: ${window.location.href}`;
+              window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+            }}
+            className="btn-secondary"
+          >
+            WhatsApp
+          </button>
+          <button onClick={() => navigate(`/invoices/new?duplicate=${invoice.id}`)} className="btn-secondary">
+            Duplicate
+          </button>
+          <button onClick={() => navigate('/invoices')} className="btn-secondary">
+            View All
+          </button>
+        </div>
+      </div>
       </div>
     </Layout>
   );

@@ -21,7 +21,10 @@
       "Bash(git checkout:*)",
       "Bash(git merge:*)",
       "Bash(git stash:*)",
-      "Bash(npx vite build:*)"
+      "Bash(npx vite build:*)",
+      "Bash(cd:*)",
+      "Bash(npx gh-pages:*)",
+      "Bash(lsof:*)"
     ],
     "deny": [],
     "ask": []

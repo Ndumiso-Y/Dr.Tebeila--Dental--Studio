@@ -35,17 +35,6 @@ export default function InvoicesList() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const badges = {
-      Draft: 'badge badge-gray',
-      ProformaOffline: 'badge badge-warning',
-      Finalized: 'badge badge-info',
-      Paid: 'badge badge-success',
-      Void: 'badge badge-danger',
-    };
-    return badges[status as keyof typeof badges] || 'badge badge-gray';
-  };
-
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
@@ -174,7 +163,14 @@ export default function InvoicesList() {
                       {formatDate(invoice.invoice_date)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={getStatusBadge(invoice.status)}>
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        invoice.status === 'Paid' ? 'bg-green-500 text-white' :
+                        invoice.status === 'Finalized' ? 'bg-yellow-500 text-white' :
+                        invoice.status === 'Quotation' ? 'bg-blue-500 text-white' :
+                        invoice.status === 'Draft' ? 'bg-gray-500 text-white' :
+                        invoice.status === 'Void' ? 'bg-red-600 text-white' :
+                        'bg-orange-500 text-white'
+                      }`}>
                         {invoice.status}
                       </span>
                     </td>
