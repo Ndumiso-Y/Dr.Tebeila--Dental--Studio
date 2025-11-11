@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Console Test</title>
+</head>
+<body>
+    <h1>Console Test Page</h1>
+    <p>Open DevTools Console (F12). You should see messages there.</p>
+    <button onclick="testClick()">Click Me - Should Log Message</button>
+
+    <script>
+        console.log('[TEST] Page loaded - JavaScript is working');
+        console.log('[TEST] If you see this, your console is working');
+
+        function testClick() {
+            console.log('[TEST] Button clicked!');
+            alert('Button clicked! Check console for message.');
+        }
+
+        // Log every second to prove console is working
+        let counter = 0;
+        setInterval(() => {
+            counter++;
+            console.log(`[TEST] Heartbeat ${counter} - console is alive`);
+        }, 1000);
+    </script>
+</body>
+</html>
