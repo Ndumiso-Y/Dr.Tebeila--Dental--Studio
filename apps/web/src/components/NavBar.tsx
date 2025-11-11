@@ -11,6 +11,7 @@ export default function NavBar() {
     { name: 'New Invoice', href: '/invoices/new', icon: 'plus' },
     { name: 'Invoices', href: '/invoices', icon: 'document' },
     { name: 'Patients', href: '/customers', icon: 'users' },
+    { name: 'Reports', href: '/reports', icon: 'chart' },
     { name: 'Settings', href: '/settings', icon: 'cog' },
   ];
 

@@ -8,6 +8,7 @@ import InvoiceNew from './pages/InvoiceNew';
 import InvoiceDetail from './pages/InvoiceDetail';
 import CustomersList from './pages/CustomersList';
 import Settings from './pages/Settings';
+import ReportsDashboard from './pages/ReportsDashboard';
 
 /* ===========================================================
    Internal routing logic with proper redirects
@@ -66,6 +67,14 @@ function AppRoutes() {
         element={
           <AuthGuard>
             <Settings />
+          </AuthGuard>
+        }
+      />
+      <Route
+        path="/reports"
+        element={
+          <AuthGuard>
+            <ReportsDashboard />
           </AuthGuard>
         }
       />
